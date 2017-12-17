@@ -54,17 +54,17 @@
 
 		// CHECK FOR MATERIAL THEME
 		if (themeName === "material") {
-			$(".xhidden > div")[0].remove()
-			tabListItem = ".mdl-layout__drawer .mdl-navigation .mdl-navigation__link"
-			tabListItemDev = ".mdl-layout__drawer .mdl-navigation .dev-only"
+			$(".xhidden > div")[0].remove();
+			tabListItem = ".mdl-layout__drawer .mdl-navigation .mdl-navigation__link";
+			tabListItemDev = ".mdl-layout__drawer .mdl-navigation .dev-only";
 
 			$('.mdl-layout__drawer .mdl-layout-title').click(function () {
-				$(this).next().toggle(200)
-			})
+				$(this).next().toggle(200);
+			});
 		} else {
-			$(".xhidden > div")[1].remove()
-			tabListItem = "#menu .submenu ul.menulist li"
-			tabListItemDev = "#menu .submenu.dev-only"
+			$(".xhidden > div")[1].remove();
+			tabListItem = "#menu .submenu ul.menulist li";
+			tabListItemDev = "#menu .submenu.dev-only";
 		}
 
 		if (!KC3Master.available) {
@@ -84,15 +84,12 @@
 			// Google Analytics just for click event
 			var gaEvent = "Strategy Room: " + $(this).data("id");
 			_gaq.push(['_trackEvent', gaEvent, 'clicked']);
-
-			$("#navbarSupportedContent").removeClass("show").addClass("collapse")
 			KC3StrategyTabs.reloadTab(this);
 		});
 
 		// Refresh current tab and force data reloading
 		$(".logo").on("click", function () {
 			console.debug("Reloading current tab [", KC3StrategyTabs.pageParams[0], "] on demand");
-			$("#navbarSupportedContent").removeClass("show").addClass("collapse")
 			KC3StrategyTabs.reloadTab(undefined, true);
 		});
 
