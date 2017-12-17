@@ -1024,7 +1024,8 @@
 				"options" : {
 					"choices" : [
 						[ "legacy", "Traditional" ],
-						[ "dark", "Dark" ]
+						[ "dark", "Dark" ],
+						[ "material", "Material" ]
 					]
 				}
 			},

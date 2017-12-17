@@ -1,0 +1,65 @@
+body {
+    display: block !important;
+    background: #36393e;
+    color: #eaeaeb;
+}
+
+.mdl-layout__header {
+    background: #202225;
+    height: auto;
+    min-height: auto;
+}
+
+.mdl-layout__header .mdl-layout__header-row {
+    height: auto;
+    padding: 0 !important;
+}
+
+.mdl-layout__header .mdl-layout-spacer {
+    text-align: center;
+}
+
+.mdl-layout__header .mdl-layout-spacer img {
+    height: 31px;
+}
+
+.mdl-layout__drawer {
+    background: #2f3136;
+    color: #eaeaeb;
+    border: 1px;
+}
+
+.mdl-layout__drawer .logo {
+    position: sticky;
+    top: 100px;
+    z-index: 999;
+}
+
+.mdl-layout__drawer .mdl-layout-title {
+    background: #202225;
+    padding-left: 35px;
+    line-height: 32px;
+    position: sticky;
+    top: 0;
+    z-index: 99;
+}
+
+.mdl-layout__drawer .mdl-navigation {
+    padding: 0;
+}
+
+.mdl-layout__drawer .mdl-navigation .mdl-navigation__link {
+    padding: 5px 0 5px 60px;
+    color: inherit;
+}
+
+.mdl-layout__drawer .mdl-navigation .mdl-navigation__link:hover {
+    background: #36393f;
+    color: inherit;
+}
+
+.mdl-layout__drawer .mdl-navigation .mdl-navigation__link.active,
+.mdl-layout__drawer .mdl-navigation .mdl-navigation__link.active:hover {
+    background: #42464d;
+    color: inherit;
+}
