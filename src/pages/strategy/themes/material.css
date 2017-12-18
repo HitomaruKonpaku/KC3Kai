@@ -14,6 +14,29 @@ canvas {
 }
 
 
+/* SCREEN */
+
+@media screen and (max-width: 800px) {
+    .container {
+        max-width: 760px;
+        margin-left: 40px;
+        margin-right: 0;
+    }
+}
+
+@media screen and (min-width: 992px) {
+    .container {
+        max-width: 920px;
+    }
+}
+
+@media screen and (min-width: 1200px) {
+    .container {
+        max-width: 1200px;
+    }
+}
+
+
 /* MAIN BODY */
 
 body {
@@ -393,6 +416,130 @@ body {
 
 /* TAB - PLAYER - RESOURCES */
 
+
+/* TAB - PLAYER - CONSUMABLES */
+
+
+/* TAB - PLAYER - EXPERIENCE */
+
+
+/* TAB - PLAYER - SHOWCASE */
+
+
+/* TAB - PLAYER - LEDGER */
+
+
+/* TAB - PLAYER - DATA BACKUP */
+
+
+/* TAB - SHIPS - SHIP LIST */
+
+
+/* TAB - SHIPS - CONSTRUCTION */
+
+
+/* TAB - SHIPS - LSC */
+
+
+/* TAB - SHIPS - DOCKING */
+
+
+/* TAB - SHIPS - LEVELING */
+
+
+/* TAB - SHIPS - BADGE */
+
+
+/* TAB - SHIPS - BLUEPRINTS */
+
+
+/* TAB - EQUIPMENT - EQUIPMENT LIST */
+
+
+/* TAB - EQUIPMENT - CRAFTING */
+
+
+/* TAB - EQUIPMENT - AIRCRAFT */
+
+
+/* TAB - EQUIPMENT - AKASHI */
+
+
+/* TAB - FLEET - MANAGER */
+
+
+/* TAB - FLEET - LOCKING */
+
+
+/* TAB - QUESTS - FLOWCHART */
+
+
+/* TAB - QUESTS - REQUIRED SHIPS */
+
+
+/* TAB - BATTLES - MAPS 
+   TAB - BATTLES - EVENTS */
+
+
+/* TAB - BATTLES - ENCOUNTERS */
+
+
+/* TAB - BATTLES - PVP HISTORY */
+
+
+/* TAB - BATTLES - DROP RECORD */
+
+
+/* TAB - EXPEDITIONS - HISTORY */
+
+
+/* TAB - EXPEDITIONS - SCOCER  */
+
+
+/* TAB - EXPEDITIONS - TABLE */
+
+
+/* TAB - LIBRARY - UPDATES */
+
+
+/* TAB - LIBRARY - SHIPS */
+
+
+/* TAB - LIBRARY - EQUIPMENT */
+
+
+/* TAB - LIBRARY - COMPARE */
+
+
+/* TAB - DEVONLY - LOGS */
+
+
+/* TAB - DEVONLY - TRANSLATION */
+
+
+/* TAB - DEVONLY - QUOTES */
+
+
+/* TAB - DEVONLY - PLAYGROUND */
+
+
+/*
+--------------------------------------------------
+**************************************************
+
+WORK IN PROGRESS
+
+DO NOT EDIT ABOVE SECTION
+
+BELOW CSS ARE COPIED FROM DARK.CSS
+
+**************************************************
+--------------------------------------------------
+*/
+
+
+/* TAB - PLAYER - RESOURCES */
+
 .tab_resources .legend_color {
     border: 1px solid #000000;
 }
@@ -599,9 +746,6 @@ body {
 
 .tab_overlodger .lodger-data .materials .material,
 .tab_overlodger .lodger-data .materials .material.over:before {}
-
-
-/* TAB - PLAYER - DATA BACKUP */
 
 
 /* TAB - SHIPS - SHIP LIST */
@@ -2461,36 +2605,3 @@ body {
 .tab_quotes .part_right .voice_entity.direct .source {
     color: #00ff00;
 }
-
-
-/* TAB - DEVONLY - PLAYGROUND */
-
-
-/* SCREEN */
-
-@media screen and (max-width: 800px) {
-    .container {
-        max-width: 760px;
-        margin-left: 40px;
-        margin-right: 0;
-    }
-}
-
-@media screen and (min-width: 992px) {
-    .container {
-        max-width: 920px;
-    }
-}
-
-@media screen and (min-width: 1200px) {
-    .container {
-        max-width: 1200px;
-    }
-}
-
-
-/*
---------------------------------------------------
-DO NOT EDIT ABOVE SECTION
---------------------------------------------------
-*/
