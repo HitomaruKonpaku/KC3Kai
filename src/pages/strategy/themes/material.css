@@ -1,8 +1,29 @@
+/* GLOBAL */
+
+a,
+a:hover {
+    color: #0096cf;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+canvas {
+    max-width: 800px;
+}
+
+
+/* MAIN BODY */
+
 body {
     display: block !important;
     background: #36393e;
     color: #eaeaeb;
 }
+
+
+/* LAYOUT - HEADER */
 
 .mdl-layout__header {
     background: #202225;
@@ -23,25 +44,44 @@ body {
     height: 31px;
 }
 
+
+/* LAYOUT - DRAWER */
+
 .mdl-layout__drawer {
     background: #2f3136;
     color: #eaeaeb;
     border: 1px;
 }
 
-.mdl-layout__drawer .logo {
-    position: sticky;
-    top: 100px;
-    z-index: 999;
-}
-
 .mdl-layout__drawer .mdl-layout-title {
     background: #202225;
-    padding-left: 35px;
-    line-height: 32px;
     position: sticky;
     top: 0;
-    z-index: 99;
+    z-index: 9;
+    display: flex;
+    align-items: center;
+}
+
+.mdl-layout__drawer .title-icon {
+    width: 20px;
+    height: 20px;
+    margin: 0 15px;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+
+.mdl-layout__drawer .title-icon.icon-collapse {
+    background-image: url('../../../assets/img/ui/material/ic_expand_less.png');
+}
+
+.mdl-layout__drawer .title-icon.icon-expand {
+    background-image: url('../../../assets/img/ui/material/ic_expand_more.png');
+    display: none;
+}
+
+.mdl-layout__drawer .title-text {
+    line-height: 32px;
+    text-transform: uppercase;
 }
 
 .mdl-layout__drawer .mdl-navigation {
@@ -63,3 +103,418 @@ body {
     background: #42464d;
     color: inherit;
 }
+
+.mdl-layout__drawer-button {
+    background: #202225;
+    color: #fff;
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.mdl-layout__drawer-button::after {
+    content: url("../../../assets/img/ui/material/ic_menu.png");
+}
+
+.mdl-layout__drawer-button .material-icons {
+    display: none;
+}
+
+
+/* COMMONS - CONTAINER */
+
+.container {
+    max-width: 1200px;
+}
+
+.container #contentHtml {
+    width: 100%;
+}
+
+
+/* COMMONS - PAGE TITLE */
+
+.page_title {
+    /* border-bottom: 2px solid #202225; */
+    border-bottom: 2px solid transparent;
+    display: flex;
+    flex-flow: row-reverse;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 5px;
+    font-weight: bold;
+    font-size: 20px;
+    text-transform: capitalize;
+}
+
+
+/* COMMONS - PAGE TITLE - HELP BUTTON */
+
+.page_help_btn {
+    width: 20px;
+    height: 20px;
+    overflow: hidden;
+    color: transparent;
+    margin-right: 15px;
+}
+
+.page_help_btn span {
+    background: #1e70b3;
+    color: #fff;
+    display: block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    text-align: center;
+    font-size: 18px;
+    line-height: 20px;
+}
+
+
+/* COMMONS - PAGE HELP */
+
+.page_help {
+    display: none;
+    background: #202225;
+    margin-bottom: 10px;
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.page_help p {
+    margin: inherit;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+.page_help .help_q {
+    margin: 0 0 0 5px;
+    color: #eaeaeb;
+    line-height: 16px;
+    font-weight: bold;
+}
+
+.page_help .help_a {
+    margin: 0 0 10px 15px;
+    color: #bbb;
+    line-height: 14px;
+}
+
+.page_help .help_more a {
+    font-size: 13px;
+    font-weight: bold;
+}
+
+
+/* COMMONS - PAGE PADDING */
+
+.page_padding {}
+
+
+/* COMMONS - PAGE PANEL */
+
+
+/* COMMONS - PAGE SECTION */
+
+.page_section {
+    height: 26px;
+    margin: 10px 0;
+    border-bottom: 2px solid #8f9092;
+    color: #eaeaeb;
+    font-size: 18px;
+    line-height: 24px;
+    text-transform: capitalize;
+}
+
+
+/* COMMONS - ? */
+
+
+/* TAB - PLAYER - PROFILE */
+
+.tab_profile br {
+    display: none;
+}
+
+.tab_profile .hq_info {
+    width: auto !important;
+}
+
+.tab_profile .hq_info .hq_field {
+    width: auto;
+    height: auto;
+    display: flex;
+    margin: 0;
+}
+
+.tab_profile .hq_info .hq_field:hover {
+    background: #2f3136;
+}
+
+.tab_profile .hq_info .hq_field>div {
+    width: auto;
+    height: auto;
+    float: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tab_profile .hq_info .hq_field .hq_label {
+    font-weight: bold;
+    width: 150px;
+    padding: 3px 20px;
+}
+
+.tab_profile .hq_info .hq_field .hq_content {
+    padding: 3px 0;
+}
+
+.tab_profile .hq_field .clear {
+    display: none;
+}
+
+.tab_profile .newsfeed {
+    display: flex;
+    flex-flow: column;
+}
+
+.tab_profile .newsfeed .feed_item {
+    width: auto;
+    height: auto;
+    margin: 0;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+}
+
+.tab_profile .newsfeed .feed_item:hover {
+    background: #2f3136;
+}
+
+.tab_profile .newsfeed .feed_item>div {
+    width: auto;
+    height: auto;
+    margin: 0 10px 0 0;
+    padding: 2px 0;
+    float: none;
+    overflow: inherit;
+    line-height: inherit;
+    white-space: inherit;
+}
+
+.tab_profile .newsfeed .feed_item .colorbox {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+}
+
+.tab_profile .newsfeed .feed_item .time {
+    width: 100px;
+}
+
+.tab_profile .newsfeed .feed_item .feed_text {}
+
+.tab_profile .newsfeed .feed_button {
+    margin: 5px 0 0 0;
+}
+
+.tab_profile .statistics {
+    width: auto !important;
+    display: flex;
+}
+
+.tab_profile .statistics .stat_section {
+    width: 220px;
+    float: none;
+    margin: 0px 1% 0 0;
+    display: flex;
+    flex-flow: column;
+}
+
+.tab_profile .statistics .stat_section .stat_head {
+    width: auto;
+    height: auto;
+    margin: 0;
+    border-radius: 0px;
+    line-height: unset;
+}
+
+.tab_profile .statistics .stat_section.stat_sortie .stat_head {
+    background: #c14344;
+}
+
+.tab_profile .statistics .stat_section.stat_pvp .stat_head {
+    background: #2ea54a;
+}
+
+.tab_profile .statistics .stat_section.stat_exped .stat_head {
+    background: #1e70b3;
+}
+
+.tab_profile .statistics .stat_section .stat_body {
+    display: flex;
+    flex-flow: column;
+}
+
+.tab_profile .statistics .stat_section .stat_body .stat_field {
+    width: auto;
+    height: auto;
+    line-height: inherit;
+    margin: 0;
+    display: flex;
+}
+
+.tab_profile .statistics .stat_section .stat_body .stat_field:hover {
+    background: #2f3136;
+}
+
+.tab_profile .statistics .stat_section .stat_body .stat_field>div {
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    float: none;
+}
+
+.tab_profile .statistics .stat_section .stat_body .stat_field .stat_label {
+    width: 60%;
+    padding: 3px 0 3px 5px;
+}
+
+.tab_profile .statistics .stat_section .stat_body .stat_field .stat_value {
+    padding: 3px 0;
+}
+
+
+/* TAB - PLAYER - SCREENSHOTS */
+
+
+/* TAB - PLAYER - RESOURCES */
+
+
+/* TAB - PLAYER - CONSUMABLES */
+
+
+/* TAB - PLAYER - EXPERIENCE */
+
+
+/* TAB - PLAYER - SHOWCASE */
+
+
+/* TAB - PLAYER - LEDGER */
+
+
+/* TAB - PLAYER - DATA BACKUP */
+
+
+/* TAB - SHIPS - SHIP LIST */
+
+
+/* TAB - SHIPS - CONSTRUCTION */
+
+
+/* TAB - SHIPS - LSC */
+
+
+/* TAB - SHIPS - DOCKING */
+
+
+/* TAB - SHIPS - LEVELING */
+
+
+/* TAB - SHIPS - BADGE */
+
+
+/* TAB - SHIPS - BLUEPRINTS */
+
+
+/* TAB - EQUIPMENT - EQUIPMENT LIST */
+
+
+/* TAB - EQUIPMENT - CRAFTING */
+
+
+/* TAB - EQUIPMENT - AIRCRAFT */
+
+
+/* TAB - EQUIPMENT - AKASHI */
+
+
+/* TAB - FLEET - MANAGER */
+
+
+/* TAB - FLEET - LOCKING */
+
+
+/* TAB - QUESTS - FLOWCHART */
+
+
+/* TAB - QUESTS - REQUIRED SHIPS */
+
+
+/* TAB - BATTLES - MAPS */
+
+
+/* TAB - BATTLES - EVENTS */
+
+
+/* TAB - BATTLES - ENCOUNTERS */
+
+
+/* TAB - BATTLES - PVP HISTORY */
+
+
+/* TAB - BATTLES - DROP RECORD */
+
+
+/* TAB - EXPEDITIONS - HISTORY */
+
+
+/* TAB - EXPEDITIONS - SCOCER  */
+
+
+/* TAB - EXPEDITIONS - TABLE */
+
+
+/* TAB - LIBRARY - UPDATES */
+
+
+/* TAB - LIBRARY - SHIPS */
+
+
+/* TAB - LIBRARY - EQUIPMENT */
+
+
+/* TAB - LIBRARY - COMPARE */
+
+
+/* TAB - DEVONLY - LOGS */
+
+
+/* TAB - DEVONLY - TRANSLATION */
+
+
+/* TAB - DEVONLY - QUOTES */
+
+
+/* TAB - DEVONLY - PLAYGROUND */
+
+
+/* SCREEN */
+
+@media screen and (max-width: 800px) {
+    .container {
+        max-width: 760px;
+        margin-left: 40px;
+        margin-right: 0;
+    }
+}
+
+
+/*
+--------------------------------------------------
+DO NOT EDIT ABOVE SECTION
+--------------------------------------------------
+*/

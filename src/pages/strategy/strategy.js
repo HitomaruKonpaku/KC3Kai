@@ -56,15 +56,19 @@
 		if (themeName === "material") {
 			$(".xhidden > div")[0].remove();
 			tabListItem = ".mdl-layout__drawer .mdl-navigation .mdl-navigation__link";
-			tabListItemDev = ".mdl-layout__drawer .mdl-navigation .dev-only";
+			tabListItemDev = ".mdl-layout__drawer .dev-only";
 
 			$('.mdl-layout__drawer .mdl-layout-title').click(function () {
 				$(this).next().toggle(200);
+				$(".icon-collapse", this).toggle();
+				$(".icon-expand", this).toggle();
 			});
 		} else {
 			$(".xhidden > div")[1].remove();
 			tabListItem = "#menu .submenu ul.menulist li";
 			tabListItemDev = "#menu .submenu.dev-only";
+
+			$("link[href$='material.min.css']").remove();
 		}
 
 		if (!KC3Master.available) {

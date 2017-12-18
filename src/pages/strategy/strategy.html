@@ -6,7 +6,6 @@
 	<!-- @nonbuildstart -->
 	<link href="../../assets/css/bootstrap.css" rel="stylesheet" type="text/css">
 	<link href="../../assets/css/material.min.css" rel="stylesheet" type="text/css">
-	<!-- <link href="../../assets/css/mdb.css" rel="stylesheet" type="text/css"> -->
 	<!-- @nonbuildend -->
 	<link href="../../assets/css/global.css" rel="stylesheet" type="text/css">
 	<link href="../../assets/css/jquery-ui.min.css" rel="stylesheet" type="text/css">
@@ -133,7 +132,7 @@
 
 		<div class="mdl-layout mdl-js-layout mdl-layout--fixed-drawer">
 
-			<header class="mdl-layout__header">
+			<!-- <header class="mdl-layout__header">
 				<div class="mdl-layout__header-row">
 					<div class="mdl-layout-spacer">
 						<div class="logo hover" title="Refresh current page">
@@ -142,12 +141,16 @@
 					</div>
 
 				</div>
-			</header>
+			</header> -->
 
 			<div class="mdl-layout__drawer">
 
 				<div>
-					<span class="mdl-layout-title">Player</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Player</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link active" data-id="profile">Profile</a>
 						<a class="mdl-navigation__link" data-id="screenshots">Screenshots</a>
@@ -161,7 +164,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title">Ships</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Ships</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link" data-id="ships">Ship List</a>
 						<a class="mdl-navigation__link" data-id="builds">Construction</a>
@@ -174,7 +181,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title">Equipment</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Equipment</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link" data-id="gears">Equipment List</a>
 						<a class="mdl-navigation__link" data-id="crafts">Crafting</a>
@@ -184,7 +195,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title">Fleet</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Fleet</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link" data-id="fleet">Manager</a>
 						<a class="mdl-navigation__link" data-id="locking">Locking</a>
@@ -192,7 +207,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title">Quests</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Quests</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link" data-id="flowchart">Flowchart</a>
 						<a class="mdl-navigation__link" data-id="shipquests">Required Ships</a>
@@ -200,7 +219,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title">Battles</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Battles</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link" data-id="maps">Maps</a>
 						<a class="mdl-navigation__link" data-id="event">Events</a>
@@ -211,7 +234,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title">Expeditions</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Expeditions</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link" data-id="expedpast">History</a>
 						<a class="mdl-navigation__link" data-id="expedscorer">Scorer</a>
@@ -220,7 +247,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title">Library</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Library</div>
+					</span>
 					<nav class="mdl-navigation">
 						<a class="mdl-navigation__link" data-id="mstupdate">Updates</a>
 						<a class="mdl-navigation__link" data-id="mstship">Ships</a>
@@ -230,7 +261,11 @@
 				</div>
 
 				<div>
-					<span class="mdl-layout-title dev-only">Dev-Only</span>
+					<span class="mdl-layout-title">
+						<div class="title-icon icon-collapse"></div>
+						<div class="title-icon icon-expand"></div>
+						<div class="title-text">Dev-Only</div>
+					</span>
 					<nav class="mdl-navigation dev-only">
 						<a class="mdl-navigation__link" data-id="logger">Logs</a>
 						<a class="mdl-navigation__link" data-id="translations">Translations</a>
