@@ -60,8 +60,11 @@
 
 			$('.mdl-layout__drawer .mdl-layout-title').click(function () {
 				$(this).next().toggle(200);
-				$(".icon-collapse", this).toggle();
-				$(".icon-expand", this).toggle();
+				$(".icon-collapse, .icon-expand", this).toggle();
+			});
+
+			$('.mdl-layout__drawer .mdl-navigation__link').click(function () {
+				$('.mdl-layout__drawer, .mdl-layout__obfuscator').removeClass('is-visible');
 			});
 		} else {
 			$(".xhidden > div")[1].remove();
