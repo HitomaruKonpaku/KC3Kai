@@ -712,6 +712,7 @@ body {
 .tab_ships .ship_header .ship_field.ship_id,
 .tab_ships .ship_list .ship_item .ship_id {
     min-width: 45px;
+    max-width: 65px;
     width: 5%;
 }
 
@@ -737,6 +738,7 @@ body {
 .tab_ships .ship_list .ship_item .ship_morale,
 .tab_ships .ship_list .ship_item .ship_stat {
     min-width: 35px;
+    max-width: 55px;
     width: 4.4%;
 }
 
