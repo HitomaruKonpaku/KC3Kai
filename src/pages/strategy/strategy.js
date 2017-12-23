@@ -60,11 +60,16 @@
 			tabListItem = ".mdl-layout__drawer .mdl-navigation .mdl-navigation__link";
 			tabListItemDev = ".mdl-layout__drawer .dev-only";
 
+			// load new bootstrap
+			$("link[href$='bootstrap.css']").attr("href", "../../assets/css/bootstrap.beta.css");
+
+			// toggle nav title / category
 			$('.mdl-layout__drawer .mdl-layout-title').click(function () {
 				$(this).next().toggle(200);
 				$(".icon-collapse, .icon-expand", this).toggle();
 			});
 
+			// close drawer on nav link click
 			$('.mdl-layout__drawer .mdl-navigation__link').click(function () {
 				$('.mdl-layout__drawer, .mdl-layout__obfuscator').removeClass('is-visible');
 			});
