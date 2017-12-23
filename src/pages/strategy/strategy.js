@@ -53,7 +53,9 @@
 		}
 
 		// CHECK FOR MATERIAL THEME
-		if (themeName === "material") {
+		var isMaterialTheme = themeName === "material" || false
+
+		if (isMaterialTheme) {
 			$(".xhidden > div")[0].remove();
 			tabListItem = ".mdl-layout__drawer .mdl-navigation .mdl-navigation__link";
 			tabListItemDev = ".mdl-layout__drawer .dev-only";
@@ -109,7 +111,8 @@
 		});
 
 		// Add back to top and reload float button
-		$(window).scroll(function () {
+		var baseView = isMaterialTheme ? $('main') : $(window);
+		$(baseView).scroll(function () {
 			if ($(this).scrollTop() > 90) {
 				$('.float_toolbar').fadeIn();
 			} else {
@@ -117,7 +120,7 @@
 			}
 		});
 		$(".float_toolbar .back_to_top").on("click", function () {
-			$("html, body").animate({ scrollTop: 0 }, 300);
+			$("html, body, main").animate({ scrollTop: 0 }, 300);
 		});
 		$(".float_toolbar .reload").on("click", function () {
 			$(".logo").trigger("click");
