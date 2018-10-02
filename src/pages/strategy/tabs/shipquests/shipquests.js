@@ -50,8 +50,18 @@
 
 		mapShipQuests(shipObj) {
 			const mappedObj = this.defaultShipDataMapping(shipObj);
+			mappedObj.quests = [];
+			// remove duplicated quests and join left ones together
+			const pushDistinctQuests = (ids = []) => {
+				mappedObj.quests.push(...ids.filter(id => !mappedObj.quests.includes(id)));
+			};
+			// exactly matching current ship ID if there is the suffix `=`
+			const questsForThisShipOnly = this.getShipQuests(shipObj.masterId + "=");
+			pushDistinctQuests(questsForThisShipOnly);
+			// matching by base remodel ID by default, that is like a suffix `>`
 			const baseRemodelForm = RemodelDb.originOf(shipObj.masterId);
-			mappedObj.quests = this.getShipQuests(baseRemodelForm);
+			const questsForBaseRemodel = this.getShipQuests(baseRemodelForm);
+			pushDistinctQuests(questsForBaseRemodel);
 			return mappedObj;
 		}
 
@@ -63,11 +73,16 @@
 					.addClass("type" + String(questId).substr(0, 1));
 
 				// If we have player data about the quest
-				if(KC3QuestManager.exists(questId)
-					// If wanna hide quest not opened
-					//&& KC3QuestManager.open.includes(questId)
-				) {
-					questDiv.addClass("exists");
+				if(KC3QuestManager.exists(questId)) {
+					if(KC3QuestManager.get(questId).status === 3) {
+						questDiv.addClass("completed");
+					} else if(KC3QuestManager.active.includes(questId)) {
+						questDiv.addClass("actived");
+					} else if(KC3QuestManager.open.includes(questId)) {
+						questDiv.addClass("opened");
+					} else {
+						questDiv.addClass("exists");
+					}
 				}
 
 				questDiv.text(questMeta.code);

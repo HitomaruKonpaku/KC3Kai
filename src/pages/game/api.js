@@ -51,7 +51,7 @@ var
 // Show game screens
 function ActivateGame(){
 	waiting = false;
-	$(".box-wrap").css("background", "#fff");
+	var scale = (ConfigManager.api_gameScale || 100) / 100;
 	$(".box-wait").hide();
 	$(".game-swf").remove();
 	$(".box-game")
@@ -60,7 +60,19 @@ function ActivateGame(){
 		.attr("src", localStorage.absoluteswf)
 		.end()
 		.show();
-	$(".box-wrap").css("zoom", ((ConfigManager.api_gameScale || 100) / 100));
+	$(".box-wrap").css({
+		"background": "#fff",
+		"width": 1200,
+		"zoom": scale,
+		"margin-top": ConfigManager.api_margin
+	});
+	/*
+	var gamebox = $(".box-game").offset(), wrapper = $(".box-wrap").offset();
+	$(".box-game").css({
+		"margin-left": -gamebox.left + wrapper.left,
+		"margin-top": -gamebox.top + wrapper.top,
+	});
+	*/
 	idleTimer = setInterval(idleFunction, 1000);
 	if(ConfigManager.alert_idle_counter) {
 		$(".game-idle-timer").trigger("refresh-tick");
@@ -79,8 +91,17 @@ $(document).on("ready", function(){
 	KC3Database.init();
 	KC3Translation.execute();
 	
+	// User css customizations
+	if(ConfigManager.dmm_custom_css !== ""){
+		var customCSS = document.createElement("style");
+		customCSS.type = "text/css";
+		customCSS.id = "dmm_custom_css";
+		customCSS.innerHTML = ConfigManager.dmm_custom_css;
+		$("head").append(customCSS);
+	}
+	
 	// Apply interface configs
-	$(".box-wrap").css("margin-top", ConfigManager.api_margin+"px");
+	//$(".box-wrap").css("margin-top", ConfigManager.api_margin+"px");
 	if(ConfigManager.api_bg_image === ""){
 		$("body").css("background", ConfigManager.api_bg_color);
 	}else{
@@ -98,12 +119,13 @@ $(document).on("ready", function(){
 			$(".overlay_subtitles").css("font-weight", "bold");
 		}
 		
+		const scale = (ConfigManager.api_gameScale || 100) / 100;
 		switch (ConfigManager.subtitle_display) {
 			case "bottom":
 				$(".overlay_subtitles span").css("pointer-events", "none");
 				break;
 			case "below":
-				$(".overlay_subtitles").appendTo("body");
+				$(".overlay_subtitles").prependTo(".out-of-box");
 				$(".overlay_subtitles").css({
 					position: "relative",
 					margin: "5px auto 0px",
@@ -112,19 +134,20 @@ $(document).on("ready", function(){
 					bottom: "auto",
 					right: "auto",
 					width: $(".box-game").width(),
-					zoom: ((ConfigManager.api_gameScale || 100) / 100)
+					zoom: scale
 				});
 				break;
 			case "stick":
-				$(".overlay_subtitles").appendTo("body");
+				$(".overlay_subtitles").prependTo(".out-of-box");
 				$(".overlay_subtitles").css({
 					position: "fixed",
 					left: "50%",
 					top: "auto",
-					bottom: "3px",
+					bottom: ConfigManager.alert_idle_counter > 1 ? "40px" : "3px",
 					right: "auto",
 					margin: "0px 0px 0px "+(-($(".box-game").width()/2))+"px",
-					width: $(".box-game").width()
+					width: $(".box-game").width(),
+					zoom: scale
 				});
 				break;
 			default: break;
@@ -181,6 +204,9 @@ $(document).on("ready", function(){
 	window.addEventListener("storage", function({key, timeStamp, url}){
 		if(key === ConfigManager.keyName()) {
 			ConfigManager.load();
+			if($("#dmm_custom_css").html() !== ConfigManager.dmm_custom_css){
+				$("#dmm_custom_css").html(ConfigManager.dmm_custom_css);
+			}
 		}
 	});
 	
@@ -417,7 +443,9 @@ var interactions = {
 	
 	// Show map markers for old worlds (node letters & icons)
 	markersOverlay :function(request, sender, response){
-		if(!ConfigManager.map_markers) { response({success:false}); return true; }
+		if(!ConfigManager.map_markers && !ConfigManager.map_letters){
+			response({success:false}); return true;
+		}
 		var sortieStartDelayMillis = 2800;
 		var markersShowMillis = 5000;
 		var compassLeastShowMillis = 3500;
@@ -429,25 +457,24 @@ var interactions = {
 			var letters = KC3Meta.nodeLetters(request.worldId, request.mapId);
 			var lettersFound = (!!letters && Object.keys(letters).length > 0);
 			var icons = KC3Meta.nodeMarkers(request.worldId, request.mapId);
-			var iconsFound =  (!!icons.length && icons.length > 0);
+			var iconsFound = (!!icons.length && icons.length > 0);
 			$(".overlay_markers").hide().empty();
-			if(lettersFound){
+			if(lettersFound && ConfigManager.map_letters){
 				// Show node letters
-				var l;
-				for(l in letters){
+				for(let l in letters){
 					var letterDiv = $('<div class="letter"></div>').text(l)
 						.css("left", letters[l][0] + "px")
 						.css("top", letters[l][1] + "px");
+					if(l.length > 1) letterDiv.css("font-size", 34 - 6 * l.length);
 					$(".overlay_markers").append(letterDiv);
 				}
 			}
-			if(iconsFound){
+			if(iconsFound && ConfigManager.map_markers){
 				// Show some icon style markers
-				var i;
-				for(i in icons){
+				for(let i in icons){
 					var obj = icons[i];
 					var iconImg = $('<img />')
-						.attr("src", "../../assets/img/" + obj.img)
+						.attr("src", chrome.runtime.getURL("assets/img/" + obj.img))
 						.attr("width", obj.size[0])
 						.attr("height", obj.size[1]);
 					var iconDiv = $('<div class="icon"></div>')
@@ -506,15 +533,16 @@ var interactions = {
 	
 	// Fit screen
 	fitScreen :function(request, sender, response){
-		var GameScale = ((ConfigManager.api_gameScale || 100) / 100);
+		var gameScale = (ConfigManager.api_gameScale || 100) / 100;
+		var topMargin = Math.ceil((ConfigManager.api_margin || 0) * gameScale);
 		
 		// Get browser zoon level for the page
-		chrome.tabs.getZoom(null, function(ZoomFactor){
+		chrome.tabs.getZoom(null, function(zoomFactor){
 			// Resize the window
 			chrome.windows.getCurrent(function(wind){
 				chrome.windows.update(wind.id, {
-					width: Math.ceil(800*GameScale*ZoomFactor) + (wind.width- Math.ceil($(window).width()*ZoomFactor) ),
-					height: Math.ceil(480*GameScale*ZoomFactor) + (wind.height- Math.ceil($(window).height()*ZoomFactor) )
+					width: Math.ceil(1200 * gameScale * zoomFactor) + (wind.width  - Math.ceil($(window).width()  * zoomFactor)),
+					height: Math.ceil(720 * gameScale * zoomFactor) + (wind.height - Math.ceil($(window).height() * zoomFactor)) + topMargin
 				});
 			});
 		});
@@ -639,7 +667,6 @@ var interactions = {
 					clearTimeout(subtitleTimer);
 			}
 		};
-		hideSubtitle();
 		
 		// Display subtitle and set its removal timer
 		const showSubtitle = (subtitleText, quoteIdentifier) => {
@@ -724,6 +751,7 @@ var interactions = {
 		
 		// If subtitles available for the voice
 		if(subtitleText){
+			hideSubtitle();
 			// Book for a future display if it's a ship's hourly voice,
 			// because game preload voice file in advance (about > 5 mins, even ~24 mins).
 			if(!isNaN(Number(quoteIdentifier)) && KC3Meta.isHourlyVoiceNum(quoteVoiceNum)){
@@ -734,6 +762,16 @@ var interactions = {
 				showSubtitle(subtitleText, quoteIdentifier);
 			}
 		}
+	},
+	
+	// Live reloading meta data
+	reloadMeta :function(request, sender, response){
+		if(request.metaType === "Quotes") {
+			KC3Meta.loadQuotes();
+		} else if(request.metaType === "Quests") {
+			KC3Meta.reloadQuests();
+		}
+		console.info(request.metaType, "reloaded");
 	}
 	
 };

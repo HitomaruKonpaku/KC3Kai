@@ -20,6 +20,8 @@
 ---------------------------------*/
 .tab_shipdrop .content_root .node_drop .ships {
 }
+.tab_shipdrop .content_root .node_drop .useitems {
+}
 .tab_shipdrop .content_root .node_drop .ship * {
 	font-size:13px;
 	height:24px;
@@ -113,6 +115,7 @@
 	width:55px;
 	height:18px;
 	float:left;
+	white-space:nowrap;
 }
 
 .tab_shipdrop .massSelect {
@@ -120,7 +123,7 @@
 }
 
 .tab_shipdrop .massSelect dl {
-	width:250px;
+	width:42%;
 	display:inline-block;
 	vertical-align:top;
 	margin:0px 0px 10px 0px;
@@ -138,4 +141,18 @@
 	margin:0px 0px 0px 4px;
 	padding: 0 3px;
 	border-radius: 4px;
+}
+.tab_shipdrop .filters #timeRange {
+	width:auto;
+}
+.tab_shipdrop .filters .time_label,
+.tab_shipdrop .filters .time_input {
+	float:left;
+	height:20px;
+	margin-right:5px;
+}
+.tab_shipdrop .filters .time_input input {
+	width:130px;
+	height:20px;
+	font-size:12px;
 }

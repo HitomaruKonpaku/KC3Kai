@@ -8,7 +8,7 @@ Instantiate-able class to represent one player
 	
 	window.KC3Player = function(){
 		if(!this.load()){
-			this.id =  0;
+			this.id = 0;
 			this.name = "Unknown";
 			this.nameId = "-1";
 			this.desc = "";
@@ -28,11 +28,12 @@ Instantiate-able class to represent one player
 			this.buildSlots = 2;
 			this.shipSlots = 100;
 			this.gearSlots = 500;
+			this.parallelQuestCount = 5;
 		}
 	};
 	
 	KC3Player.prototype.update = function( data ){
-		this.id =  data.mid;
+		this.id = data.mid;
 		this.name = data.name;
 		this.nameId = data.nameId;
 		KC3Database.index = this.id;
@@ -48,6 +49,7 @@ Instantiate-able class to represent one player
 		this.buildSlots = data.buildSlots;
 		this.shipSlots = data.maxShipSlots;
 		this.gearSlots = 3 + data.maxGearSlots;
+		this.parallelQuestCount = data.questCount;
 		
 		this.updateLevel(data.level, data.exp);
 		this.checkRankPoints();
@@ -81,9 +83,11 @@ Instantiate-able class to represent one player
 		// If this is the last day of the month
 		if(PvPReset.getUTCDate() == lastDay.getUTCDate()) {
 			// At morning, check 0500 UTC = 1400 JST
-			// At night, check 1300 UTC = 2200 JST
+			// At night, check 1300 UTC = 2200 JST: Montly points reset
+			// At night, check 1700 UTC = 0200 JST: First cycle end, start second cycle
 			this.checkRankCutOff(PvPReset, 5);
 			this.checkRankCutOff(PvPReset, 13);
+			this.checkRankCutOff(PvPReset, 17);
 		}else {
 			// Not last day of the month..
 			// At morning, check 0500 UTC = 1400 JST
@@ -139,13 +143,7 @@ Instantiate-able class to represent one player
 		// KC3 user settings, Strategy Room options untouched, may cause minor conflict.
 		localStorage.removeItem("player");
 		localStorage.removeItem("fleets");
-		localStorage.removeItem("ships");
-		localStorage.removeItem("gears");
-		// History of map clear and event boss hp info will be lost, unrecoverable
-		localStorage.removeItem("maps");
 		localStorage.removeItem("statistics");
-		localStorage.removeItem("quests");
-		localStorage.removeItem("lock_plan");
 		localStorage.removeItem("lastResource");
 		localStorage.removeItem("lastUseitem");
 		localStorage.removeItem("lastExperience");
@@ -157,10 +155,17 @@ Instantiate-able class to represent one player
 		localStorage.removeItem("longestIdleTime");
 		localStorage.removeItem("pictureBook");
 		localStorage.removeItem("playerNewsFeed");
-		
-		KC3ShipManager.clear();
-		KC3GearManager.clear();
-		KC3QuestManager.clear();
+		// History of map clear and event boss hp info will be lost,
+		// still keep them since they are unrecoverable.
+		//localStorage.removeItem("maps");
+		//localStorage.removeItem("quests");
+		// KCSAPI of totally refreshing ships and gears already done,
+		// clearing them here will cause temporarily missing of cached data.
+		//localStorage.removeItem("ships");
+		//localStorage.removeItem("gears");
+		//KC3ShipManager.clear();
+		//KC3GearManager.clear();
+		//KC3QuestManager.clear();
 		KC3SortieManager.endSortie();
 	};
 	
@@ -190,6 +195,7 @@ Instantiate-able class to represent one player
 			this.buildSlots = playerInfo.buildSlots || 2;
 			this.shipSlots = playerInfo.shipSlots || 100;
 			this.gearSlots = playerInfo.gearSlots || 500;
+			this.parallelQuestCount = playerInfo.parallelQuestCount || 5;
 			return true;
 		}
 		return false;

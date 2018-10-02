@@ -15,10 +15,11 @@ You can also share this to your friends so they can watch it too. Be careful tho
 		</p>
 		<p>
 			Right clicking on the <kbd>REP</kbd> button will automatically open the
-<strong><a href="https://kc3kai.github.io/kancolle-replay/battleplayer.html" target="_blank">REPLAY WEBSITE</a></strong> with your replay.
+<strong><a href="https://kc3kai.github.io/kancolle-replay/battleplayer.html" target="_blank">REPLAY WEBSITE</a></strong> with your replay.<br/>
+			Holding <kbd>Alt</kbd> key and right clicking on the <kbd>REP</kbd> button will open the battle logs instead.
 		</p>
 		<p>
-			Hold <kbd>Alt</kbd> key and left click on the <kbd>REP</kbd> button will just copy your replay data (JSON text) to clipboard.
+			Hold <kbd>Alt</kbd> key and left click on the <kbd>REP</kbd> button to just copy your replay data (JSON text) to clipboard.
 		</p>
 	</div>
 
@@ -82,9 +83,17 @@ You can also share this to your friends so they can watch it too. Be careful tho
 			<div class="world_icon"></div>
 			<div class="world_text">Summer 2017</div>
 		</div>
-		<div class="world_box hover active" data-world_num="40">
+		<div class="world_box hover" data-world_num="40">
 			<div class="world_icon"></div>
 			<div class="world_text">Fall 2017</div>
+		</div>
+		<div class="world_box hover" data-world_num="41">
+			<div class="world_icon"></div>
+			<div class="world_text">Winter 2018</div>
+		</div>
+		<div class="world_box hover active" data-world_num="42">
+			<div class="world_icon"></div>
+			<div class="world_text">Early Fall 2018</div>
 		</div>
 		<div class="clear"></div>
 	</div>
@@ -95,8 +104,8 @@ You can also share this to your friends so they can watch it too. Be careful tho
 <div class="map_scrollable">
 	<div class="map_list">
 	</div>
-	<div class="map_shift left">&lt;</div>
-	<div class="map_shift right">&gt;</div>
+	<div class="map_shift left">&#9664;</div>
+	<div class="map_shift right">&#9654;</div>
 </div>
 
 <!-- PAGINATION -->
@@ -105,8 +114,15 @@ You can also share this to your friends so they can watch it too. Be careful tho
 
 <!-- SORTIE CONTROLS -->
 <div class="sortie_controls">
+	<div class="sortie_per_page">
+		<select class="item_count_select">
+			<option value="20">20</option><option value="10">10</option><option value="5">5</option>
+		</select>
+		<span>sorties per page,</span>
+	</div>
 	<div class="sortie_count"></div>
 	<div class="sortie_batch_toggles">
+		<div class="show_new_shipstate_toggle sortie_toggle active hover" data-target="show_new_shipstate" title="Taiha/Chuuha stamps">T</div>
 		<div class="non_battle_toggle sortie_toggle active hover" data-target="non_battle" title="Battle nodes only">B</div>
 	</div>
 </div>
@@ -234,6 +250,7 @@ You can also share this to your friends so they can watch it too. Be careful tho
 				<div class="exped">0</div><div class="lbas">AB</div>
 				<img/>
 			</div>
+			<div class="node_result_box node_friend"><img/></div>
 		</div>
 		<div class="node_enemy">
 			<div class="node_eformation"><img/></div>
@@ -331,6 +348,8 @@ You can also share this to your friends so they can watch it too. Be careful tho
 			<div class="rfleet_equip rfleet_equip_2"><img/></div>
 			<div class="rfleet_equip rfleet_equip_3"><img/></div>
 			<div class="rfleet_equip rfleet_equip_4"><img/></div>
+			<div class="rfleet_equip rfleet_equip_5"><img/></div>
+			<div class="rfleet_equip rfleet_equip_6"><img/></div>
 		</div>
 		<div class="clear"></div>
 	</div>

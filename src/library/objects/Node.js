@@ -41,11 +41,11 @@ Used by SortieManager
 		this.startsFromNight = false;
 		
 		// If passed initial values
-		if(typeof nodeData != "undefined"){
+		if(typeof nodeData !== "undefined"){
 			
 			// If passed raw data from compass,
 			// about api_event_id and api_event_kind, see SortieManager.js#L237
-			if(typeof nodeData.api_event_kind != "undefined"){
+			if(typeof nodeData.api_event_kind !== "undefined"){
 				this.eships = [];
 				this.eventKind = nodeData.api_event_kind;
 				this.eventId = nodeData.api_event_id;
@@ -65,7 +65,7 @@ Used by SortieManager
 			}
 			
 			// If passed formatted enemy list from PVP
-			if(typeof nodeData.pvp_opponents != "undefined"){
+			if(typeof nodeData.pvp_opponents !== "undefined"){
 				this.eships = nodeData.pvp_opponents;
 				this.gaugeDamage = -1;
 			}
@@ -105,34 +105,32 @@ Used by SortieManager
 	};
 	
 	KC3Node.prototype.defineAsResource = function( nodeData ){
-		var self = this;
 		this.type = "resource";
 		this.item = [];
 		this.icon = [];
 		this.amount = [];
-		if (typeof nodeData.api_itemget == "object" && typeof nodeData.api_itemget.api_id != "undefined") {
-			nodeData.api_itemget = [nodeData.api_itemget];
-		}
-		this.nodeDesc = this.buildItemNodeDesc( nodeData.api_itemget );
-		nodeData.api_itemget.forEach(function(itemget){
-			var icon_id = itemget.api_icon_id;
-			var getcount = itemget.api_getcount;
-			self.item.push(icon_id);
-			self.icon.push(function(folder){
+		const itemgetArr = Array.isArray(nodeData.api_itemget) ? nodeData.api_itemget :
+			nodeData.api_itemget && nodeData.api_itemget.api_id ? [nodeData.api_itemget] : [];
+		this.nodeDesc = this.buildItemNodeDesc( itemgetArr );
+		itemgetArr.forEach(itemget => {
+			const icon_id = itemget.api_icon_id;
+			const getcount = itemget.api_getcount;
+			this.item.push(icon_id);
+			this.icon.push(function(folder){
 				return folder+(
 					["fuel","ammo","steel","bauxite","ibuild","bucket","devmat","compass","","box1","box2","box3"]
 					[icon_id - 1]
 				)+".png";
 			});
-			self.amount.push(getcount);
+			this.amount.push(getcount);
 			if(icon_id < 8)
-				KC3SortieManager.materialGain[icon_id-1] += getcount;
+				KC3SortieManager.materialGain[icon_id - 1] += getcount;
 		});
 		return this;
 	};
 	
 	KC3Node.prototype.defineAsBounty = function( nodeData ){
-		var self = this,
+		const self = this,
 			mapKey = KC3SortieManager.getSortieMap().join(''),
 			currentMap = KC3SortieManager.getCurrentMapData();
 		this.type = "bounty";
@@ -140,7 +138,7 @@ Used by SortieManager
 		this.icon = function(folder){
 			return folder+(
 				["fuel","ammo","steel","bauxite","ibuild","bucket","devmat","compass"]
-				[self.item-1]
+				[self.item - 1]
 			)+".png";
 		};
 		this.nodeDesc = this.buildItemNodeDesc([
@@ -168,7 +166,7 @@ Used by SortieManager
 		this.icon = function(folder){
 			return folder+(
 				["fuel","ammo","steel","bauxite","ibuild","bucket","devmat","compass"]
-				[nodeData.api_happening.api_icon_id-1]
+				[nodeData.api_happening.api_icon_id - 1]
 			)+".png";
 		};
 		this.nodeDesc = this.buildItemNodeDesc( [nodeData.api_happening] );
@@ -178,34 +176,47 @@ Used by SortieManager
 			const rscType = ["", "fuel", "ammo"][itemId] || "";
 			// Do nothing if not fuel or ammo lost
 			if(!rscType) return;
-			let maxRsc = 0;
+			let maxRemainingRsc = 0, radarShips = 0;
 			KC3SortieManager.getSortieFleet().map(id => PlayerManager.fleets[id]).forEach(fleet => {
 				fleet.shipsUnescaped().forEach(ship => {
-					maxRsc = Math.max(maxRsc, ship[rscType] || 0);
+					maxRemainingRsc = Math.max(maxRemainingRsc, ship[rscType] || 0);
+					radarShips = Math.min(radarShips + (ship.hasEquipmentType(2, [12, 13]) & 1), 3);
 				});
 			});
-			const maxLost = nodeData.api_happening.api_count;
+			const actualMaxLoss = nodeData.api_happening.api_count;
 			// Nothing to lose?
-			if(!maxLost || maxRsc === 0) return;
-			// Max rate supposed to be up to 40%, 30%, 24%, 20% (by radar ship amount),
-			// rate of some maps lower than 40%, so here computes it in time.
-			// Server side might use floor(maxRsc * 0.4 (or 0.3 / 0.24 / 0.2)),
-			// so here try to round it up. But may be still inaccurate.
-			const lossRate = Math.qckInt("ceil", maxLost / maxRsc, 2);
+			if(!actualMaxLoss || maxRemainingRsc === 0) return;
+			// Server-side might use `min(nodeMaxLoss, floor(nowRsc * 0.4 * [1, 0.75, 0.6, 0.5][radarShips]))`,
+			// reduce it from remaining rsc of all activated ships and return the max value as `api_count`.
+			// `radarShips` = amount of ships equipped any type of radar,
+			// `nodeMaxLoss` is the map cell property which unknown by client-side,
+			// can be get from `api_count` if computed one bigger than it.
 			const isReducedByRadar = !!nodeData.api_happening.api_dentan;
+			const lossRate = 0.4 * (isReducedByRadar ? [1.0, 0.75, 0.6, 0.5][radarShips] || 1 : 1);
+			const expectedMaxLoss = Math.floor(maxRemainingRsc * lossRate);
+			const isCappedByMap = actualMaxLoss < expectedMaxLoss;
 			let totalLost = 0;
 			KC3SortieManager.getSortieFleet().map(id => PlayerManager.fleets[id]).forEach(fleet => {
 				fleet.shipsUnescaped().forEach(ship => {
-					const loss = Math.floor(ship[rscType] * lossRate);
-					totalLost += loss;
+					// cap reduction to map node max loss value
+					let loss = Math.min(actualMaxLoss, Math.floor(ship[rscType] * lossRate));
+					// cap reduction to remaining rsc, guarantee it >= 0
+					loss = Math.min(ship[rscType], loss);
 					ship[rscType] -= loss;
+					totalLost += loss;
 				});
 			});
 			console.log("Fleet(s) will lose {0} {1} in total at maelstrom".format(rscType, totalLost),
-				lossRate, "({0} / {1})".format(maxLost, maxRsc),
-				isReducedByRadar ? "(reduced by radar)" : "");
+				Math.qckInt("floor", lossRate, 2), "({0} / {1}){2}{3}".format(
+					actualMaxLoss, maxRemainingRsc,
+					(isCappedByMap ? " (capped from {0})".format(expectedMaxLoss) : ""),
+					(isReducedByRadar ? " (reduced by radar)" : "")
+				)
+			);
 		};
-		reduceFleetRscIfNecessary(nodeData);
+		// It seems server-side has changed losses of the same node to random values,
+		// stop inaccurate simulation for now
+		//reduceFleetRscIfNecessary(nodeData);
 		return this;
 	};
 	
@@ -236,7 +247,8 @@ Used by SortieManager
 	
 	KC3Node.prototype.defineAsDud = function( nodeData ){
 		this.type = "";
-		
+		// since Fall 2018
+		this.dudMessage = (nodeData.api_cell_flavor || {}).api_message;
 		return this;
 	};
 	
@@ -244,6 +256,16 @@ Used by SortieManager
 	KC3Node.prototype.normalizeArrayIndex = function(array){
 		// reuse function from prediction module
 		return KC3BattlePrediction.normalizeArrayIndexing(array);
+	};
+	
+	/**
+	 * Detect KCSAPI old battle data via existing `api_f_maxhps` instead of `api_maxhps`
+	 * @param battleData - raw battle API data.
+	 * @return undefined if raw battle data not ready, like non-battle nodes.
+	 */
+	KC3Node.prototype.isOldBattleData = function(battleData){
+		const data = battleData || this.battleNight || this.battleDay;
+		return !data ? undefined : data.api_f_maxhps === undefined && Array.isArray(data.api_maxhps);
 	};
 	
 	/* BATTLE FUNCTIONS
@@ -310,8 +332,12 @@ Used by SortieManager
 		this.isNightToDay = typeof battleData.api_day_flag !== 'undefined';
 		if(this.isNightToDay) {
 			this.toDawnFlag = battleData.api_day_flag > 0;
-			this.flarePos = battleData.api_flare_pos[0];
-			this.eFlarePos = battleData.api_flare_pos[1];
+			[this.flarePos, this.eFlarePos] = battleData.api_flare_pos;
+			this.flarePos = this.flarePos >= 0 ? 1 + (isPlayerCombined ? this.flarePos % 6 : this.flarePos) : -1;
+			this.eFlarePos = this.eFlarePos >= 0 ? 1 + (isEnemyCombined ? this.eFlarePos % 6 : this.eFlarePos) : -1;
+		}
+		if (battleData.api_friendly_info !== undefined) {
+			this.friendlySupportFlag = true;
 		}
 		
 		// only used by old theme, replaced by beginHPs
@@ -437,7 +463,7 @@ Used by SortieManager
 		}
 		
 		// Fighter phase 2
-		if(typeof battleData.api_kouku2 != "undefined"){
+		if(typeof battleData.api_kouku2 !== "undefined"){
 			this.planeFighters.player[1] += battleData.api_kouku2.api_stage1.api_f_lostcount;
 			this.planeFighters.abyssal[1] += battleData.api_kouku2.api_stage1.api_e_lostcount;
 			
@@ -446,7 +472,7 @@ Used by SortieManager
 				this.planeBombers.player[1] += battleData.api_kouku2.api_stage2.api_f_lostcount;
 				this.planeBombers.abyssal[1] += battleData.api_kouku2.api_stage2.api_e_lostcount;
 				if(!!battleData.api_kouku2.api_stage2.api_air_fire){
-					if(!this.antiAirFire || this.antiAirFire.length<1){
+					if(!this.antiAirFire || this.antiAirFire.length < 1){
 						this.antiAirFire = [null];
 					}
 					this.antiAirFire[1] = battleData.api_kouku2.api_stage2.api_air_fire;
@@ -455,7 +481,7 @@ Used by SortieManager
 		}
 		
 		// Jet plane phase, happen before fighter attack phase
-		if(typeof battleData.api_injection_kouku != "undefined"){
+		if(typeof battleData.api_injection_kouku !== "undefined"){
 			var jetPlanePhase = battleData.api_injection_kouku;
 			this.planeJetFighters = { player:[0,0], abyssal:[0,0] };
 			this.planeJetBombers = { player:[0,0], abyssal:[0,0] };
@@ -479,24 +505,25 @@ Used by SortieManager
 			}
 		}
 		
-		// Boss Debuffed
-		this.debuffed = typeof battleData.api_boss_damaged != "undefined" ?
-			(battleData.api_boss_damaged == 1) ? true : false
-			: false;
+		// Boss Debuffed, see `BattleCommonModel.prototype.isBossDamaged`
+		this.debuffed = 1 == (battleData.api_boss_damaged || battleData.api_xal01);
 		
 		// Battle analysis only if on sortie or PvP, not applied to battle simulation, like sortielogs.
 		const isRealBattle = KC3SortieManager.isOnSortie() || KC3SortieManager.isPvP();
-		if(isRealBattle || KC3Node.debugPrediction()){
+		if((isRealBattle || KC3Node.debugPrediction() || ConfigManager.sr_show_new_shipstate)
+			&& !this.isOldBattleData(battleData)){
 			const fleetId = this.fleetSent - 1;
 			// To work better on battle simulation, prefer to use `isPlayerCombined`,
 			// which check via API data instead of determining 'current state' of PlayerManager
-			//const isPlayerCombinedSent = fleetId === 0 && PlayerManager.combinedFleet > 0;
+			//const isPlayerCombinedSent = fleetId === 0 && (this.playerCombinedType || PlayerManager.combinedFleet) > 0;
 
 			// Find battle type
 			const player = (() => {
 				if (!isPlayerCombined) { return KC3BattlePrediction.Player.SINGLE; }
-
-				switch (PlayerManager.combinedFleet) {
+				const combinedFleetType = this.playerCombinedType || PlayerManager.combinedFleet;
+				switch (combinedFleetType) {
+					case 0: case undefined:
+						return KC3BattlePrediction.Player.SINGLE;
 					case 1:
 						return KC3BattlePrediction.Player.CTF;
 					case 2:
@@ -504,7 +531,7 @@ Used by SortieManager
 					case 3:
 						return KC3BattlePrediction.Player.TCF;
 					default:
-						throw new Error(`Unknown combined fleet code: ${PlayerManager.combinedFleet}`);
+						throw new Error(`Unknown combined fleet code: ${combinedFleetType}`);
 				}
 			})();
 			const enemy = isEnemyCombined ? KC3BattlePrediction.Enemy.COMBINED : KC3BattlePrediction.Enemy.SINGLE;
@@ -514,7 +541,14 @@ Used by SortieManager
 
 			const dameConCode = (() => {
 				if (KC3SortieManager.isPvP()) { return {}; }
-
+				if (Array.isArray(this.fleetStates) && this.fleetStates.length > (isPlayerCombined & 1)) {
+					return {
+						main: this.fleetStates[0].equip.map(equip => KC3Ship.findDamecon(equip)),
+						escort: isPlayerCombined && this.fleetStates[1].equip.map(equip => KC3Ship.findDamecon(equip)),
+					};
+				} else if (!isRealBattle) {
+					return {};
+				}
 				return {
 					main: PlayerManager.fleets[fleetId].getDameConCodes(),
 					escort: isPlayerCombined && PlayerManager.fleets[1].getDameConCodes(),
@@ -528,9 +562,11 @@ Used by SortieManager
 			}
 
 			if (ConfigManager.info_btrank) {
-				this.predictedRank = KC3BattlePrediction.predictRank(battleData.api_name, this.battleNight || battleData, this.predictedFleetsDay);
+				[this.predictedRank, this.predictedDamageGauge] = KC3BattlePrediction.predictRankAndDamageGauge(
+					battleData.api_name, this.battleNight || battleData, this.predictedFleetsDay
+				);
 				if (KC3Node.debugPrediction()) {
-					console.debug(`Node ${this.letter} predicted rank`, this.predictedRank, this.sortie);
+					console.debug(`Node ${this.letter} predicted rank`, this.predictedRank, this.predictedDamageGauge, this.sortie);
 				}
 				
 				const mvpResult = KC3BattlePrediction.predictMvp(this.predictedFleetsDay, this.predictedFleetsNight);
@@ -549,25 +585,29 @@ Used by SortieManager
 			if (isRealBattle) {
 				result.fleets.playerMain.forEach(({ hp, dameConConsumed }, position) => {
 					const ship = PlayerManager.fleets[fleetId].ship(position);
-					ship.morale = Math.max(0, Math.min(100, ship.morale + (ship.morale < 30 ? -9 : -3)));
-					ship.afterHp[0] = hp;
-					ship.afterHp[1] = ship.hp[1];
-					this.dameConConsumed[position] = dameConConsumed ? ship.findDameCon() : false;
-					if(Array.isArray(this.predictedMvps) && this.predictedMvps[0] > 0) {
-						// string indicates prediction value
-						ship.mvp = this.predictedMvps[0] === position + 1 ?
-							(this.predictedMvpCapable ? "chosen" : "candidate") : false;
+					if(!ship.isAbsent()) {
+						ship.morale = Math.max(0, Math.min(100, ship.morale + (ship.morale < 30 ? -9 : -3)));
+						ship.afterHp[0] = hp;
+						ship.afterHp[1] = ship.hp[1];
+						this.dameConConsumed[position] = dameConConsumed ? ship.findDameCon() : false;
+						if(Array.isArray(this.predictedMvps) && this.predictedMvps[0] > 0) {
+							// string indicates prediction value
+							ship.mvp = this.predictedMvps[0] === position + 1 ?
+								(this.predictedMvpCapable ? "chosen" : "candidate") : false;
+						}
 					}
 				});
 				result.fleets.playerEscort.forEach(({ hp, dameConConsumed }, position) => {
 					const ship = PlayerManager.fleets[1].ship(position);
-					ship.morale = Math.max(0, Math.min(100, ship.morale + (ship.morale < 30 ? -9 : -3)));
-					ship.afterHp[0] = hp;
-					ship.afterHp[1] = ship.hp[1];
-					this.dameConConsumedEscort[position] = dameConConsumed ? ship.findDameCon() : false;
-					if(Array.isArray(this.predictedMvps) && this.predictedMvps[1] > 0) {
-						ship.mvp = this.predictedMvps[1] === position + 1 ?
-							(this.predictedMvpCapable ? "chosen" : "candidate") : false;
+					if(!ship.isAbsent()) {
+						ship.morale = Math.max(0, Math.min(100, ship.morale + (ship.morale < 30 ? -9 : -3)));
+						ship.afterHp[0] = hp;
+						ship.afterHp[1] = ship.hp[1];
+						this.dameConConsumedEscort[position] = dameConConsumed ? ship.findDameCon() : false;
+						if(Array.isArray(this.predictedMvps) && this.predictedMvps[1] > 0) {
+							ship.mvp = this.predictedMvps[1] === position + 1 ?
+								(this.predictedMvpCapable ? "chosen" : "candidate") : false;
+						}
 					}
 				});
 			}
@@ -582,19 +622,25 @@ Used by SortieManager
 				this.enemySunk[position] = ship.sunk;
 			});
 
+			this.unexpectedList = this.unexpectedList || [];
+			this.unexpectedList.push(...this.unexpectedDamagePrediction(result.fleets.playerMain,
+				this.fleetSent -1, battleData.api_formation[0], battleData.api_formation[2], isRealBattle));
+			this.unexpectedList.push(...this.unexpectedDamagePrediction(result.fleets.playerEscort,
+				1, battleData.api_formation[0], battleData.api_formation[2], isRealBattle)
+			);
 		}
-		
+
 		if(this.gaugeDamage > -1) {
 			this.gaugeDamage = Math.min(this.enemyFlagshipHp, this.enemyFlagshipHp - this.enemyHP[0].hp);
 			
 			(function(sortieData){
-				if(this.isBoss()) {
+				if(this.isValidBoss()) {
 					// Invoke on boss event callback
 					if(sortieData.isOnSortie() && sortieData.onBossAvailable) {
 						sortieData.onBossAvailable(this);
 					}
 					// Save boss HP for future sortie
-					var thisMap = sortieData.getCurrentMapData();
+					const thisMap = sortieData.getCurrentMapData();
 					if(thisMap.kind === "gauge-hp") {
 						thisMap.baseHp = thisMap.baseHp || this.enemyFlagshipHp;
 						if(thisMap.baseHp != this.enemyFlagshipHp) {
@@ -680,7 +726,11 @@ Used by SortieManager
 			this.nightSupportInfo = nightData.api_n_support_info;
 			this.nightSupportInfo.api_n_support_flag = nightData.api_n_support_flag;
 		}
-		
+
+		if (nightData.api_friendly_info !== undefined) {
+			this.friendlySupportFlag = true;
+		}
+
 		this.maxHPs = {
 			ally: nightData.api_f_maxhps,
 			enemy: nightData.api_e_maxhps
@@ -733,19 +783,26 @@ Used by SortieManager
 		this.fcontact = this.fcontactId > 0 ? KC3Meta.term("BattleContactYes") : KC3Meta.term("BattleContactNo");
 		this.econtactId = nightData.api_touch_plane[1];
 		this.econtact = this.econtactId > 0 ? KC3Meta.term("BattleContactYes") : KC3Meta.term("BattleContactNo");
-		this.flarePos = nightData.api_flare_pos[0]; // Star shell user pos 1-6
-		this.eFlarePos = nightData.api_flare_pos[1]; // PvP opponent only, abyss star shell not existed yet
+		// FIXME to handle history data before event Winter 2018, have to determine its date time?
+		//this.flarePos = nightData.api_flare_pos[0]; // Star shell user pos 1-6
+		// Star shell user ship index, pos from 0 ~ 6 or 0 ~ 11 (if combined?)
+		[this.flarePos, this.eFlarePos] = nightData.api_flare_pos;
+		// Shift it back to 1-based index to be compatible with old codes
+		this.flarePos = this.flarePos >= 0 ? 1 + (isPlayerCombined ? this.flarePos % 6 : this.flarePos) : -1;
+		// PvP opponent only, abyssal star shell not existed yet
+		this.eFlarePos = this.eFlarePos >= 0 ? 1 + (isEnemyCombined ? this.eFlarePos % 6 : this.eFlarePos) : -1;
 		
 		// Battle analysis only if on sortie or PvP, not applied to sortielogs
 		const isRealBattle = KC3SortieManager.isOnSortie() || KC3SortieManager.isPvP();
-		if(isRealBattle || KC3Node.debugPrediction()){
+		if((isRealBattle || KC3Node.debugPrediction() || ConfigManager.sr_show_new_shipstate)
+			&& !this.isOldBattleData(nightData)){
 			const fleetId = this.fleetSent - 1;
 
 			// Find battle type
 			const player = (() => {
 				if (!isPlayerCombined) { return KC3BattlePrediction.Player.SINGLE; }
-
-				switch (PlayerManager.combinedFleet) {
+				const combinedFleetType = this.playerCombinedType || PlayerManager.combinedFleet;
+				switch (combinedFleetType) {
 					case 0: case undefined:
 						return KC3BattlePrediction.Player.SINGLE;
 					case 1:
@@ -755,14 +812,21 @@ Used by SortieManager
 					case 3:
 						return KC3BattlePrediction.Player.TCF;
 					default:
-						throw new Error(`Unknown combined fleet code: ${PlayerManager.combinedFleet}`);
+						throw new Error(`Unknown combined fleet code: ${combinedFleetType}`);
 				}
 			})();
 			const enemy = isEnemyCombined ? KC3BattlePrediction.Enemy.COMBINED : KC3BattlePrediction.Enemy.SINGLE;
 			const time = KC3BattlePrediction.Time.NIGHT;
 			const dameConCode = (() => {
 				if (KC3SortieManager.isPvP()) { return {}; }
-
+				if (Array.isArray(this.fleetStates) && this.fleetStates.length > (isPlayerCombined & 1)) {
+					return {
+						main: this.fleetStates[0].equip.map(equip => KC3Ship.findDamecon(equip)),
+						escort: isPlayerCombined && this.fleetStates[1].equip.map(equip => KC3Ship.findDamecon(equip)),
+					};
+				} else if (!isRealBattle) {
+					return {};
+				}
 				return {
 					main: PlayerManager.fleets[fleetId].getDameConCodes(),
 					escort: isPlayerCombined && PlayerManager.fleets[1].getDameConCodes(),
@@ -775,9 +839,11 @@ Used by SortieManager
 			}
 
 			if (ConfigManager.info_btrank) {
-				this.predictedRankNight = KC3BattlePrediction.predictRank(nightData.api_name, this.battleDay || nightData, this.predictedFleetsNight);
+				[this.predictedRankNight, this.predictedDamageGaugeNight] = KC3BattlePrediction.predictRankAndDamageGauge(
+					nightData.api_name, this.battleDay || nightData, this.predictedFleetsNight
+				);
 				if (KC3Node.debugPrediction()) {
-					console.debug(`Node ${this.letter} predicted yasen rank`, this.predictedRankNight);
+					console.debug(`Node ${this.letter} predicted yasen rank`, this.predictedRankNight, this.predictedDamageGaugeNight);
 				}
 				
 				const mvpResult = KC3BattlePrediction.predictMvp(this.predictedFleetsDay, this.predictedFleetsNight);
@@ -798,19 +864,21 @@ Used by SortieManager
 				const playerResult = isPlayerCombined ? result.fleets.playerEscort : result.fleets.playerMain;
 				playerResult.forEach(({ hp, dameConConsumed }, position) => {
 					const ship = playerFleet.ship(position);
-					ship.hp = [ship.afterHp[0], ship.afterHp[1]];
-					ship.morale = Math.max(0, Math.min(100, ship.morale + (this.startsFromNight ? -2 : -2)));
-					ship.afterHp[0] = hp;
-					ship.afterHp[1] = ship.hp[1];
-					if (isPlayerCombined) {
-						this.dameConConsumedEscort[position] = dameConConsumed ? ship.findDameCon() : false;
-					} else {
-						this.dameConConsumed[position] = dameConConsumed ? ship.findDameCon() : false;
-					}
-					if(Array.isArray(this.predictedMvpsNight) &&
-						this.predictedMvpsNight[isPlayerCombined ? 1 : 0] > 0) {
-						ship.mvp = this.predictedMvpsNight[isPlayerCombined ? 1 : 0] === position + 1 ? 
-							(this.predictedMvpCapable ? "chosen" : "candidate") : false;
+					if(!ship.isAbsent()) {
+						ship.hp = [ship.afterHp[0], ship.afterHp[1]];
+						ship.morale = Math.max(0, Math.min(100, ship.morale + (this.startsFromNight ? -2 : -2)));
+						ship.afterHp[0] = hp;
+						ship.afterHp[1] = ship.hp[1];
+						if(isPlayerCombined) {
+							this.dameConConsumedEscort[position] = dameConConsumed ? ship.findDameCon() : false;
+						} else {
+							this.dameConConsumed[position] = dameConConsumed ? ship.findDameCon() : false;
+						}
+						if(Array.isArray(this.predictedMvpsNight) &&
+							this.predictedMvpsNight[isPlayerCombined ? 1 : 0] > 0) {
+							ship.mvp = this.predictedMvpsNight[isPlayerCombined ? 1 : 0] === position + 1 ? 
+								(this.predictedMvpCapable ? "chosen" : "candidate") : false;
+						}
 					}
 				});
 			}
@@ -821,11 +889,21 @@ Used by SortieManager
 				this.enemySunk[position] = ship.sunk;
 			});
 
+			this.unexpectedList = this.unexpectedList || [];
+			this.unexpectedList.push(...this.unexpectedDamagePrediction(result.fleets.playerMain,
+				this.fleetSent -1, nightData.api_formation[0], nightData.api_formation[2], isRealBattle));
+			this.unexpectedList.push(...this.unexpectedDamagePrediction(result.fleets.playerEscort,
+				1, nightData.api_formation[0], nightData.api_formation[2], isRealBattle)
+			);
 		}
 		
 		if(this.gaugeDamage > -1
 			&& (!isEnemyCombined || this.activatedEnemyFleet == 1) ) {
 			let bossCurrentHp = nightData.api_e_nowhps[0];
+			// boss now hp will be the one after friendly fleet battle,
+			// so have to find the damage made by friend fleet back.
+			if(bossCurrentHp + this.gaugeDamage < nightData.api_e_maxhps[0])
+				bossCurrentHp = nightData.api_e_maxhps[0] - this.gaugeDamage;
 			this.gaugeDamage += Math.min(bossCurrentHp, bossCurrentHp - this.enemyHP[0].hp);
 		}
 		
@@ -853,7 +931,8 @@ Used by SortieManager
 			if(this.allyNoDamage && this.rating === "S")
 				this.rating = "SS";
 			
-			if(this.isBoss()) {
+			// for multi-gauges event map, check if this node is the right boss for current stage
+			if(this.isValidBoss()) {
 				// assumed maps[ckey] already initialized at /mapinfo or /start
 				var maps = KC3SortieManager.getAllMapData(),
 					ckey = 'm' + KC3SortieManager.getSortieMap().join(''),
@@ -880,14 +959,14 @@ Used by SortieManager
 					sb[pt].push(srid);
 					oc = sb[pt].length;
 					console.info("Current sortie recorded as", pt);
-					console.info("You've done this", oc, "time"+(oc != 1 ? 's' : '')+'.',
+					console.info("You've done this", oc, "time"+(oc > 1 ? 's' : '')+'.',
 						"Good luck, see you next time!");
 				}
 				/* ==> DESPAIR STATISTICS */
 				
 				/* FLAGSHIP ATTACKING ==> */
 				console.log("Damaged Flagship", this.gaugeDamage, "/", maps[ckey].curhp || 0, "pts");
-				// also check if destroyed flagship is from main fleet (boss)
+				// also check if destroyed flagship is from main fleet (the boss)
 				const mainFlagshipKilled = (!this.activatedEnemyFleet || this.activatedEnemyFleet == 1) ?
 					resultData.api_destsf : 0;
 				switch(maps[ckey].kind) {
@@ -898,15 +977,16 @@ Used by SortieManager
 							maps[ckey].kills += mainFlagshipKilled;
 						break;
 					case 'gauge-hp': /* HP-Gauge */
-						if((this.gaugeDamage >= 0) && (maps[ckey].curhp || 0) > 0) {
+						if(this.gaugeDamage >= 0 && (maps[ckey].curhp || 0) > 0) {
 							maps[ckey].curhp -= this.gaugeDamage;
-							if(maps[ckey].curhp <= 0) // if last kill -- check whether flagship is killed or not -- flagship killed = map clear
-								maps[ckey].curhp = 1 - (maps[ckey].clear = mainFlagshipKilled);
+							// if last kill, check whether flagship is killed or not
+							// flagship killed = gauge clear, not map clear if there are multi-gauges
+							if(maps[ckey].curhp <= 0)
+								maps[ckey].curhp = 1 - (mainFlagshipKilled & 1);
 						}
 						break;
 					case 'gauge-tp': /* TP-Gauge */
-						/* TP Gauge */
-						if (typeof resultData.api_landing_hp != "undefined") {
+						if(typeof resultData.api_landing_hp !== "undefined") {
 							var TPdata = resultData.api_landing_hp;
 							this.gaugeDamage = Math.min(TPdata.api_now_hp, TPdata.api_sub_value);
 							maps[ckey].curhp = TPdata.api_now_hp - this.gaugeDamage;
@@ -914,13 +994,28 @@ Used by SortieManager
 						} else {
 							maps[ckey].curhp = 0;
 						}
+						// clean remembered boss hp if there is one
+						delete maps[ckey].baseHp;
 						console.log("Landing get",this.gaugeDamage,"->",maps[ckey].curhp,"/",maps[ckey].maxhp,"TP");
 						break;
 					default:         /* Undefined */
 						break;
 				}
+				// obtaining clear once
+				maps[ckey].clear |= resultData.api_first_clear;
 				
-				maps[ckey].clear |= resultData.api_first_clear; // obtaining clear once
+				// add a flag to this sortie record
+				if(resultData.api_first_clear && KC3SortieManager.isOnSavedSortie()) {
+					KC3Database.con.sortie.get(KC3SortieManager.getSortieId(), (sortie) => {
+						const eventmap = (sortie || {}).eventmap;
+						if(eventmap) {
+							eventmap.api_first_clear = resultData.api_first_clear;
+							KC3Database.con.sortie.put(sortie).then(() => {
+								console.info("Congratulations! This is your first time clear this map", eventmap);
+							});
+						}
+					});
+				}
 				
 				if(stat) {
 					stat.onBoss.hpdat[srid] = [maps[ckey].curhp,maps[ckey].maxhp];
@@ -933,7 +1028,7 @@ Used by SortieManager
 			
 			var ship_get = [];
 			
-			if(typeof resultData.api_get_ship != "undefined"){
+			if(typeof resultData.api_get_ship !== "undefined"){
 				this.drop = resultData.api_get_ship.api_ship_id;
 				KC3ShipManager.pendingShipNum += 1;
 				KC3GearManager.pendingGearNum += KC3Meta.defaultEquip(this.drop);
@@ -945,7 +1040,19 @@ Used by SortieManager
 				this.drop = 0;
 			}
 			
-			if(typeof resultData.api_get_eventitem != "undefined"){
+			if(typeof resultData.api_get_useitem !== "undefined"){
+				this.dropUseitem = resultData.api_get_useitem.api_useitem_id || 0;
+			}else{
+				this.dropUseitem = 0;
+			}
+			
+			if(typeof resultData.api_get_slotitem !== "undefined"){
+				this.dropSlotitem = resultData.api_get_slotitem.api_slotitem_id || 0;
+			}else{
+				this.dropSlotitem = 0;
+			}
+			
+			if(typeof resultData.api_get_eventitem !== "undefined"){
 				(function(resultEventItems){
 					console.log("Event items get", resultEventItems);
 					(resultEventItems || []).forEach(function(eventItem){
@@ -1034,6 +1141,11 @@ Used by SortieManager
 				}).filter(function(shipId){return shipId;});
 			});
 			
+			// If damecon used in a battle, will record changed equipment for this and later nodes
+			const isAnyDameconConsumed = (this.dameConConsumed || []).some(v => !!v) ||
+				(this.dameConConsumedEscort || []).some(v => !!v);
+			KC3SortieManager.setSlotitemConsumed(isAnyDameconConsumed);
+			
 			var sunkApCnt = 0;
 			for(var i = 0; i < this.eships.length; i++) {
 				if (this.enemySunk[i]) {
@@ -1079,7 +1191,7 @@ Used by SortieManager
 			// Save enemy deck name for encounter
 			var name = resultData.api_enemy_info.api_deck_name;
 			if(KC3SortieManager.isOnSortie() && !!name){
-				this.saveEnemyEncounterInfo(null, name);
+				this.saveEnemyEncounterInfo(null, name, this.nodalXP);
 			}
 		} catch (e) {
 			console.warn("Caught an exception:", e, "\nProceeds safely");/*RemoveLogging:skip*/
@@ -1133,8 +1245,8 @@ Used by SortieManager
 	 * Used as a tooltip by devtools panel or SRoom Maps History for now.
 	 * return a empty string if no any support triggered.
 	 */
-	KC3Node.prototype.buildSupportAttackMessage = function(){
-		var thisNode = this;
+	KC3Node.prototype.buildSupportAttackMessage = function(thisNode = this,
+		showEnemyDamage = false, autoVertical = false){
 		var supportTips = "";
 		if(thisNode.supportFlag && !!thisNode.supportInfo){
 			supportTips += buildSupportExpeditionMessage(thisNode.supportInfo);
@@ -1177,10 +1289,83 @@ Used by SortieManager
 			});
 			if(!!supportTips && !!lbasTips) { supportTips += "\n"; }
 		}
-		return supportTips + lbasTips === "" ? "" : $("<p></p>")
-			.css("font-size", "11px")
-			.text(supportTips + lbasTips)
-			.prop("outerHTML");
+		const tipLogs = supportTips + lbasTips;
+		if(tipLogs === "") return "";
+		const tooltip = $("<div/>"), logs = $("<p></p>");
+		logs.css("font-size", "11px").css("max-width", "390px").appendTo(tooltip);
+		logs.append(tipLogs);
+		
+		// night battle only nodes (at 5-3) have allowed support fleet since 2017-11-17
+		const battleData = thisNode.battleDay || thisNode.battleNight;
+		if(showEnemyDamage && battleData && battleData.api_e_nowhps){
+			// Battle data without `api_e_nowhps` is old, not supported by current prediction module
+			const { fleets } = KC3BattlePrediction.analyzeBattlePartially(
+				battleData, [], // Not concern at damecons and damages of player ships here
+				// Might pre-define this type of phases preset inside module?
+				["nSupport", "airBaseInjection", "airBaseAttack", "support"]
+			);
+			// Auto put table vertically on right if lines of logs >= enemy ship amount
+			const tipLogsLines = (tipLogs.match(/\r\n|\n|\r/g) || []).length + 1;
+			const isVertical = autoVertical && tipLogsLines >= Math.max(6, battleData.api_ship_ke.length);
+			const enemyTable = isVertical ?
+				$(`<table>
+					<tr class="r1"><td class="e1 s"></td><td class="e1 d"></td><td class="m1 s"></td><td class="m1 d"></td></tr>
+					<tr class="r2"><td class="e2 s"></td><td class="e2 d"></td><td class="m2 s"></td><td class="m2 d"></td></tr>
+					<tr class="r3"><td class="e3 s"></td><td class="e3 d"></td><td class="m3 s"></td><td class="m3 d"></td></tr>
+					<tr class="r4"><td class="e4 s"></td><td class="e4 d"></td><td class="m4 s"></td><td class="m4 d"></td></tr>
+					<tr class="r5"><td class="e5 s"></td><td class="e5 d"></td><td class="m5 s"></td><td class="m5 d"></td></tr>
+					<tr class="r6"><td class="e6 s"></td><td class="e6 d"></td><td class="m6 s"></td><td class="m6 d"></td></tr>
+				</table>`) :
+				$(`<table><tr class="main">
+					<td class="m1 s"></td><td class="m1 d"></td><td class="m2 s"></td><td class="m2 d"></td>
+					<td class="m3 s"></td><td class="m3 d"></td><td class="m4 s"></td><td class="m4 d"></td>
+					<td class="m5 s"></td><td class="m5 d"></td><td class="m6 s"></td><td class="m6 d"></td>
+				</tr><tr class="escort">
+					<td class="e1 s"></td><td class="e1 d"></td><td class="e2 s"></td><td class="e2 d"></td>
+					<td class="e3 s"></td><td class="e3 d"></td><td class="e4 s"></td><td class="e4 d"></td>
+					<td class="e5 s"></td><td class="e5 d"></td><td class="e6 s"></td><td class="e6 d"></td>
+				</tr></table>`);
+			// Remove line feeds and indents to avoid auto `<br/>` converting
+			enemyTable.html(enemyTable.prop("outerHTML").replace(/\t|\n|\r|\r\n/g, ""));
+			enemyTable.css("font-size", "11px");
+			if(isVertical) {
+				logs.css("float", "left");
+				enemyTable.css("float", "left").css("margin-left", "5px");
+			}
+			const enemyShips = battleData.api_ship_ke.slice(0, 6),
+				mainFleetCount = enemyShips.length,
+				enemyShipHps = battleData.api_e_nowhps.slice(0, 6);
+			if(battleData.api_ship_ke_combined) {
+				enemyShips.push(...battleData.api_ship_ke_combined);
+				enemyShipHps.push(...battleData.api_e_nowhps_combined);
+			}
+			const enemyShipDamages = enemyShipHps.slice(0);
+			fleets.enemyMain.forEach((ship, idx) => { enemyShipDamages[idx] -= ship.hp; });
+			if(battleData.api_ship_ke_combined) {
+				fleets.enemyEscort.forEach((ship, idx) => {
+					const pos = mainFleetCount + idx;
+					enemyShipDamages[pos] -= ship.hp;
+				});
+			}
+			enemyShips.forEach((sid, idx) => {
+				if(sid > 0) {
+					const shipIdx = idx > mainFleetCount - 1 ? idx - mainFleetCount + 1 : idx + 1,
+						mainEscort = idx > mainFleetCount - 1 ? "e" : "m";
+					const shipCell = $(`.${mainEscort}${shipIdx}.s`, enemyTable),
+						damageCell = $(`.${mainEscort}${shipIdx}.d`, enemyTable);
+					const shipMaster = KC3Master.ship(sid);
+					const shipIcon = $("<img/>").width(14).height(14)
+						.css("margin-top", "-3px")
+						.attr("src", KC3Meta.abyssIcon(sid));
+					shipCell.append(shipIcon).css("padding-right", 3);
+					damageCell.append(-enemyShipDamages[idx]).css("padding-right", 5);
+					const isSunk = enemyShipDamages[idx] >= enemyShipHps[idx];
+					if(isSunk) damageCell.css("color", "goldenrod");
+				}
+			});
+			tooltip.append(enemyTable);
+		}
+		return tooltip.html();
 	};
 	
 	/**
@@ -1227,15 +1412,14 @@ Used by SortieManager
 	/**
 		Build a tooltip about computed enemy air power for researching air battle
 	*/
-	KC3Node.prototype.buildAirPowerMessage = function(){
+	KC3Node.prototype.buildAirPowerMessage = function(forLbas = false){
 		var tooltip = this.airbattle[2] || "";
-		const apTuple = KC3Calc.enemyFighterPower(this.eships, this.eSlot);
+		const apTuple = KC3Calc.enemyFighterPower(this.eships, this.eSlot, undefined, forLbas);
 		// Air Power: AI<1/3, 1/3<=AD<2/3, 2/3<=AP<3/2, 3/2<=AS<3, 3<=AS+
 		const ap = apTuple[0];
 		if(!!ap){
 			tooltip += "\n" + KC3Meta.term("InferredFighterPower")
-				.format(ap, Math.round(ap / 3), Math.round(2 * ap / 3),
-					Math.round(3 * ap / 2), 3 * ap);
+				.format(KC3Calc.fighterPowerIntervals(ap));
 		}
 		const enemyTotalPlanes = this.planeFighters.abyssal[0];
 		if(!!enemyTotalPlanes){
@@ -1308,16 +1492,16 @@ Used by SortieManager
 					"{0} /{1}".format(currentHp === 0 || currentHp ? currentHp : "?", maxHp || "?")
 			);
 			if(Array.isArray(eParam)){
-				tooltip += $("<img />").attr("src", "/assets/img/client/mod_fp.png")
+				tooltip += $("<img />").attr("src", KC3Meta.statIcon("mod_fp"))
 					.css(iconStyles).prop("outerHTML");
 				tooltip += "{0}: {1}\n".format(KC3Meta.term("ShipFire"), eParam[0]);
-				tooltip += $("<img />").attr("src", "/assets/img/client/mod_tp.png")
+				tooltip += $("<img />").attr("src", KC3Meta.statIcon("mod_tp"))
 					.css(iconStyles).prop("outerHTML");
 				tooltip += "{0}: {1}\n".format(KC3Meta.term("ShipTorpedo"), eParam[1]);
-				tooltip += $("<img />").attr("src", "/assets/img/client/mod_aa.png")
+				tooltip += $("<img />").attr("src", KC3Meta.statIcon("mod_aa"))
 					.css(iconStyles).prop("outerHTML");
 				tooltip += "{0}: {1}\n".format(KC3Meta.term("ShipAntiAir"), eParam[2]);
-				tooltip += $("<img />").attr("src", "/assets/img/client/mod_ar.png")
+				tooltip += $("<img />").attr("src", KC3Meta.statIcon("mod_ar"))
 					.css(iconStyles).prop("outerHTML");
 				tooltip += "{0}: {1}".format(KC3Meta.term("ShipArmor"), eParam[3]);
 			}
@@ -1326,7 +1510,7 @@ Used by SortieManager
 					if(eSlot[slotIdx] > 0) {
 						const gearMaster = KC3Master.slotitem(eSlot[slotIdx]);
 						tooltip += "\n" + $("<img />")
-							.attr("src","/assets/img/items/"+gearMaster.api_type[3]+".png")
+							.attr("src", KC3Meta.itemIcon(gearMaster.api_type[3]))
 							.css(iconStyles).prop("outerHTML");
 						tooltip += KC3Meta.gearName(gearMaster.api_name);
 						if(KC3GearManager.carrierBasedAircraftType3Ids
@@ -1343,18 +1527,149 @@ Used by SortieManager
 	};
 
 	/**
+	 * Build HTML tooltip for friendly fleet info and battle result.
+	 */
+	KC3Node.prototype.buildFriendlyBattleMessage = function(battleData = this.battleNight, sortieTime = this.stime * 1000){
+		//console.debug("Friendly battle", battleData, this.battleDay);
+		const friendlyTable = $('<table>' +
+			'<tr class="header"><th class="type" colspan="3">&nbsp;</th><th class="level">Lv</th><th class="hp">HP</th><th class="stats"></th><th class="equip">&nbsp;</th></tr>' +
+			'<tr class="ship_1"><td class="face"></td><td class="name"></td><td class="voice"></td><td class="level"></td><td class="hp"></td><td class="stats"></td><td class="equip"></td></tr>' +
+			'<tr class="ship_2"><td class="face"></td><td class="name"></td><td class="voice"></td><td class="level"></td><td class="hp"></td><td class="stats"></td><td class="equip"></td></tr>' +
+			'<tr class="ship_3"><td class="face"></td><td class="name"></td><td class="voice"></td><td class="level"></td><td class="hp"></td><td class="stats"></td><td class="equip"></td></tr>' +
+			'<tr class="ship_4"><td class="face"></td><td class="name"></td><td class="voice"></td><td class="level"></td><td class="hp"></td><td class="stats"></td><td class="equip"></td></tr>' +
+			'<tr class="ship_5"><td class="face"></td><td class="name"></td><td class="voice"></td><td class="level"></td><td class="hp"></td><td class="stats"></td><td class="equip"></td></tr>' +
+			'<tr class="ship_6"><td class="face"></td><td class="name"></td><td class="voice"></td><td class="level"></td><td class="hp"></td><td class="stats"></td><td class="equip"></td></tr>' +
+			'<tr class="ship_7"><td class="face"></td><td class="name"></td><td class="voice"></td><td class="level"></td><td class="hp"></td><td class="stats"></td><td class="equip"></td></tr>' +
+			'</table>');
+		const enemyTable = $('<table>' +
+			'<tr class="main"><td class="s_1"></td><td class="dmg_1"></td><td class="s_2"></td><td class="dmg_2"></td><td class="s_3"></td><td class="dmg_3"></td>' +
+				'<td class="s_4"></td><td class="dmg_4"></td><td class="s_5"></td><td class="dmg_5"></td><td class="s_6"></td><td class="dmg_6"></td></tr>' +
+			'<tr class="escort"><td class="s_1"></td><td class="dmg_1"></td><td class="s_2"></td><td class="dmg_2"></td><td class="s_3"></td><td class="dmg_3"></td>' +
+				'<td class="s_4"></td><td class="dmg_4"></td><td class="s_5"></td><td class="dmg_5"></td><td class="s_6"></td><td class="dmg_6"></td></tr>' +
+			'</table>');
+		const tooltip = $("<div></div>");
+		// Summaries ship damage for one side made by another side (night shelling only for now)
+		const sumFriendlyBattleDamages = (friendlyBattle, defenderFleetCount, attackerSide = 0) => {
+			const damages = new Array(defenderFleetCount).fill(0);
+			const hougeki = friendlyBattle.api_hougeki;
+			hougeki.api_at_eflag.forEach((sideFlag, atkIdx) => {
+				if(sideFlag === attackerSide) {
+					hougeki.api_df_list[atkIdx].forEach((defender, dmgIdx) => {
+						if(defender >= 0 && defender < defenderFleetCount) {
+							damages[defender] += sumSupportDamageArray([hougeki.api_damage[atkIdx][dmgIdx] || 0]);
+						}
+					});
+				}
+			});
+			return damages;
+		};
+		const friendlyFleet = (battleData || {}).api_friendly_info,
+			friendlyBattle = (battleData || {}).api_friendly_battle;
+		if(!friendlyFleet || !friendlyBattle) return tooltip.html();
+		// Fill up table of friendly fleet info
+		friendlyTable.css("font-size", "11px");
+		$(".header .hp", friendlyTable).css("text-align", "center");
+		const yasenIcon = $("<img/>").width(10).height(10)
+			.css("margin-top", "-2px")
+			.attr("src", KC3Meta.statIcon("yasen"));
+		$(".header .stats", friendlyTable).append(yasenIcon);
+		$(".type", friendlyTable).text("#{0}".format(friendlyFleet.api_production_type));
+		const friendlyFleetDamages = sumFriendlyBattleDamages(friendlyBattle,
+			friendlyFleet.api_ship_id.length, 1);
+		friendlyFleet.api_ship_id.forEach((sid, idx) => {
+			const tRow = $(`.ship_${idx+1}`, friendlyTable);
+			if(sid > 0) {
+				const shipMaster = KC3Master.ship(sid);
+				const chp = friendlyFleet.api_nowhps[idx], mhp = friendlyFleet.api_maxhps[idx];
+				const leftHp = chp - friendlyFleetDamages[idx];
+				const isTaiha = (leftHp / mhp) < 0.25;
+				const shipIcon = $("<img/>").width(14).height(14)
+					.css("margin-top", "-3px")
+					.attr("src", KC3Meta.shipIcon(sid, undefined, true, isTaiha));
+				$(".face", tRow).append(shipIcon).css("padding-right", 3);
+				$(".name", tRow).append(KC3Meta.shipName(shipMaster.api_name)).css("padding-right", 2);
+				$(".voice", tRow).append(friendlyFleet.api_voice_p_no[idx] > 0 ?
+					$("<img/>").width(11).height(8).css("margin-top", "-2px")
+						.attr("src", "/assets/img/ui/sound.png") :
+					"&nbsp;"
+				).css("padding-right", 3);
+				$(".level", tRow).append(friendlyFleet.api_ship_lv[idx]).css("padding-right", 5);
+				$(".hp", tRow).append("{0}{2} /{1}".format(chp, mhp,
+						friendlyFleetDamages[idx] > 0 ? -friendlyFleetDamages[idx] : ""
+					)
+				).css("padding-right", 5);
+				if(isTaiha) $(".hp", tRow).css("color", "red");
+				// Show yasen (fp + tp) power only, ship current power / possible max power
+				$(".stats", tRow).append(
+					"{0} /{1}".format(
+						friendlyFleet.api_Param[idx][0] + friendlyFleet.api_Param[idx][1],
+						shipMaster.api_houg[1] + shipMaster.api_raig[1]
+					)
+				).css("padding-right", 3);
+				const isStarShellUser = friendlyBattle.api_flare_pos && friendlyBattle.api_flare_pos[0] === idx;
+				friendlyFleet.api_Slot[idx].forEach((gid, slot) => {
+					if(gid > 0) {
+						const gearMaster = KC3Master.slotitem(gid);
+						const gearIcon = $("<img/>").width(13).height(13)
+							.css("vertical-align", "text-bottom")
+							.attr("src", KC3Meta.itemIcon(gearMaster.api_type[3]));
+						if(isStarShellUser && gearMaster.api_type[2] === 33) {
+							gearIcon.css("filter", "drop-shadow(0px 0px 2px #ff3399)")
+								.css("-webkit-filter", "drop-shadow(0px 0px 2px #ff3399)");
+						}
+						$(".equip", tRow).append(gearIcon).css("margin-right", 2);
+					}
+				});
+			}
+		});
+		// Fill up table of damage made to abyssal ships
+		enemyTable.css("font-size", "11px");
+		const enemyShips = battleData.api_ship_ke.slice(0, 6),
+			mainFleetCount = enemyShips.length,
+			enemyShipBeforeHps = battleData.api_e_nowhps.slice(0, 6);
+		if(battleData.api_ship_ke_combined) {
+			enemyShips.push(...battleData.api_ship_ke_combined);
+			enemyShipBeforeHps.push(...battleData.api_e_nowhps_combined);
+		}
+		const enemyFleetDamages = sumFriendlyBattleDamages(friendlyBattle,
+			enemyShips.length, 0);
+		enemyShips.forEach((sid, idx) => {
+			const tRow = $(idx > mainFleetCount - 1 ? ".escort" : ".main", enemyTable);
+			const shipIdx = idx > mainFleetCount - 1 ? idx - mainFleetCount + 1 : idx + 1;
+			if(sid > 0) {
+				const shipMaster = KC3Master.ship(sid);
+				const shipIcon = $("<img/>").width(14).height(14)
+					.css("margin-top", "-3px")
+					.attr("src", KC3Meta.abyssIcon(sid));
+				$(`.s_${shipIdx}`, tRow).append(shipIcon).css("padding-right", 3);
+				$(`.dmg_${shipIdx}`, tRow).append(-enemyFleetDamages[idx]).css("padding-right", 5);
+				const isSunk = enemyFleetDamages[idx] > 0 && enemyShipBeforeHps[idx] -
+					// before Phase 2, enemyShipBeforeHps meant enemyShipAfterHps
+					(KC3Meta.isPhase2Started(sortieTime) ? enemyFleetDamages[idx] : 0) <= 0;
+				if(isSunk) $(`.dmg_${shipIdx}`, tRow).css("color", "goldenrod");
+			}
+		});
+		// Join up messages and tables
+		tooltip.append(KC3Meta.term("BattleFriendlyArrived") + "<br/>");
+		tooltip.append(friendlyTable);
+		tooltip.append(KC3Meta.term("BattleFriendlyBattle") + "<br/>");
+		tooltip.append(enemyTable);
+		return tooltip.html();
+	};
+
+	/**
 		Build HTML tooltip for details of air battle losses
 	*/
 	KC3Node.prototype.buildAirBattleLossMessage = function(){
-		var template = $('<table><tr><th class="type">&nbsp;</th><th>Friendly&nbsp;</th><th>Abyssal</th></tr>' +
+		const template = $('<table><tr><th class="type">&nbsp;</th><th>Friendly&nbsp;</th><th>Abyssal</th></tr>' +
 			'<tr class="contact_row"><td>Contact</td><td class="ally_contact"></td><td class="enemy_contact"></td></tr>' +
 			'<tr class="airbattle_row"><td>Result</td><td colspan="2" class="airbattle"></td></tr>' +
 			'<tr><td>Stage1</td><td class="ally_fighter"></td><td class="enemy_fighter"></td></tr>' + 
 			'<tr><td>Stage2</td><td class="ally_bomber"></td><td class="enemy_bomber"></td></tr></table>');
-		var tooltip = $("<div></div>");
-		var fillAirBattleData = function(typeName, koukuApiData){
-			var table = template.clone();
-			var stage1 = koukuApiData.api_stage1 || {
+		const tooltip = $("<div></div>");
+		const fillAirBattleData = function(typeName, koukuApiData){
+			const table = template.clone();
+			const stage1 = koukuApiData.api_stage1 || {
 					api_f_count:0,api_f_lostcount:0,
 					api_e_count:0,api_e_lostcount:0
 				},
@@ -1421,27 +1736,27 @@ Used by SortieManager
 		const isSafeArray = (obj, path) => Array.isArray(Object.getSafePath(obj, path));
 		// jets assault from carriers
 		if(isSafeArray(b, "api_injection_kouku.api_stage3.api_edam")){
-			totalDamage += Math.floor(b.api_injection_kouku.api_stage3.api_edam.slice(1).reduce((a, v) => a + v, 0));
+			totalDamage += sumSupportDamageArray(b.api_injection_kouku.api_stage3.api_edam);
 		}
 		if(isSafeArray(b, "api_injection_kouku.api_stage3_combined.api_edam")){
-			totalDamage += Math.floor(b.api_injection_kouku.api_stage3_combined.api_edam.slice(1).reduce((a, v) => a + v, 0));
+			totalDamage += sumSupportDamageArray(b.api_injection_kouku.api_stage3_combined.api_edam);
 		}
 		if(isSafeArray(b, "api_injection_kouku.api_plane_from") && Array.isArray(b.api_injection_kouku.api_plane_from[0])){
 			b.api_injection_kouku.api_plane_from[0].filter(idx => idx > -1).forEach(idx => { planeFromSet.add(idx); });
 		}
 		// regular air battle
 		if(isSafeArray(b, "api_kouku.api_stage3.api_edam")){
-			totalDamage += Math.floor(b.api_kouku.api_stage3.api_edam.slice(1).reduce((a, v) => a + v, 0));
+			totalDamage += sumSupportDamageArray(b.api_kouku.api_stage3.api_edam);
 		}
 		if(isSafeArray(b, "api_kouku.api_stage3_combined.api_edam")){
-			totalDamage += Math.floor(b.api_kouku.api_stage3_combined.api_edam.slice(1).reduce((a, v) => a + v, 0));
+			totalDamage += sumSupportDamageArray(b.api_kouku.api_stage3_combined.api_edam);
 		}
 		if(isSafeArray(b, "api_kouku.api_plane_from") && Array.isArray(b.api_kouku.api_plane_from[0])){
 			b.api_kouku.api_plane_from[0].filter(idx => idx > -1).forEach(idx => { planeFromSet.add(idx); });
 		}
 		// 2nd wave for air battle only node, supposed to no combined
 		if(isSafeArray(b, "api_kouku2.api_stage3_combined.api_edam")){
-			totalDamage += Math.floor(b.api_kouku2.api_stage3_combined.api_edam.slice(1).reduce((a, v) => a + v, 0));
+			totalDamage += sumSupportDamageArray(b.api_kouku2.api_stage3_combined.api_edam);
 		}
 		if(isSafeArray(b, "api_kouku2.api_plane_from") && Array.isArray(b.api_kouku2.api_plane_from[0])){
 			b.api_kouku2.api_plane_from[0].filter(idx => idx > -1).forEach(idx => { planeFromSet.add(idx); });
@@ -1458,9 +1773,13 @@ Used by SortieManager
 		//console.debug("Raw Air Base Raid data", battleData);
 		this.lostKind = battleData.api_lost_kind;
 		this.eships = this.normalizeArrayIndex(battleData.api_ship_ke);
-		this.eformation = battleData.api_formation[1];
+		// Pad ship array to 6 for saving into encounter record
+		this.eships = Array.pad(this.eships, 6, -1);
 		this.elevels = this.normalizeArrayIndex(battleData.api_ship_lv);
+		this.elevels = Array.pad(this.elevels, 6, -1);
 		this.eSlot = battleData.api_eSlot;
+		this.eSlot = Array.pad(this.eSlot, 6, -1);
+		this.eformation = battleData.api_formation[1];
 		this.engagement = KC3Meta.engagement(battleData.api_formation[2]);
 		this.maxHPs = {
 			ally: battleData.api_f_maxhps,
@@ -1513,16 +1832,28 @@ Used by SortieManager
 		this.baseDamage = bomberPhase && bomberPhase.api_fdam
 			? sumSupportDamageArray(bomberPhase.api_fdam)
 			: 0;
+		// Record encountered enemy air raid formation
+		this.saveEnemyEncounterInfo(this.battleDestruction, undefined, undefined, true);
 	};
 	
 	KC3Node.prototype.isBoss = function(){
-		// see advanceNode() (SortieManager.js) for api details
+		// see advanceNode() (SortieManager.js) for api details,
+		// or alternatively at `Core.swf/common.models.bases.BattleBaseData.isBossMap()`
 		return (
 			// boss battle
 			this.eventId === 5 &&
 			// enemy single || enemy combined || night-to-day
 			(this.eventKind === 1 || this.eventKind === 5 || this.eventKind === 7)
 		);
+	};
+	
+	KC3Node.prototype.isValidBoss = function(){
+		if(!this.isBoss()) return false;
+		const thisMap = KC3SortieManager.getCurrentMapData(),
+			eventMapGauge = KC3Meta.eventGauge(KC3SortieManager.getSortieMap().join(''), thisMap.gaugeNum || 1),
+			isInvalidBoss = eventMapGauge && Array.isArray(eventMapGauge.boss) &&
+				eventMapGauge.boss.indexOf(this.id) === -1;
+		return !isInvalidBoss;
 	};
 	
 	KC3Node.prototype.isMvpPredictionCapable = function(){
@@ -1559,12 +1890,326 @@ Used by SortieManager
 			}
 		});
 	};
+
+	/**
+	 * Unexpected damage checker that checks damage instances from BP module.
+	 * @see http://kancolle.wikia.com/wiki/Combat/Damage_Calculation
+	 * @param predictedFleet - playerMain/playerEscort array from BP fleets export
+	 * @param fleetnum - player fleet index
+	 * @param formation - player formation id
+	 * @param engagement - engagement id
+	 * @param isRealBattle - indicate node data is from real sortie battle or DB history
+	 * @return {array} with element {Object} that has attributes:
+	 *   * enemy: Enemy formation, id, equips, stats and health before attack
+	 *   * ship: Player formation, position, id, equips, stats, improvements, proficiency, combined fleet type, current health and ammo
+	 *   * damageInstance: Actual damage, expected damage range and critical
+	 *   * isUnexpected: Boolean to check if damage is in expected or unexpected range
+	 */
+	KC3Node.prototype.unexpectedDamagePrediction = function(predictedFleet, fleetnum, formation, engagement,
+		isRealBattle = true) {
+		const unexpectedList = [];
+		let sunkenShips = 0;
+		predictedFleet.forEach(({ attacks }, position) => {
+			let ship = PlayerManager.fleets[fleetnum].ship(position);
+
+			// SHIP SIMULATION FOR SORTIE HISTORY
+			if (!isRealBattle && KC3Node.debugPrediction() && this.nodeData.id) {
+				position = position + sunkenShips;
+				let shipData = this.nodeData["fleet" + (fleetnum + 1)][position];
+				while(this.sunken && this.sunken[this.playerCombined ? fleetnum : 0].includes(shipData.mst_id)) {
+					sunkenShips++;
+					position = position + sunkenShips;
+					shipData = this.nodeData["fleet" + (fleetnum + 1)][position];
+				}
+				const shipMaster = KC3Master.ship(shipData.mst_id);
+				ship = new KC3Ship();
+				ship.shipData = shipData;
+				ship.rosterId = 1;
+				ship.masterId = shipData.mst_id;
+				ship.slots = this.fleetStates && this.fleetStates.length ?
+					this.fleetStates[this.playerCombined ? fleetnum : 0].slots[position] :
+					shipMaster.api_maxeq;
+				ship.equipment = function(slot){
+					switch(typeof slot) {
+						case 'number':
+						case 'string':
+							// assume last element in this.shipData.equip is ex item
+							return slot < 0 || slot >= this.shipData.equip.length ?
+								this.equipment(true)[this.shipData.equip.length - 1] :
+								this.equipment(true)[slot];
+						case 'boolean':
+							// create and cache KC3Gear array based on this.shipData.equip
+							this.gearData = this.gearData ||
+								this.shipData.equip.map((masterId, idx) => new KC3Gear({
+									api_id: masterId > 0 ? idx + 1 : 0, // placeholder for rosterId
+									api_slotitem_id: masterId > 0 ? masterId : 0,
+									api_level: this.shipData.stars[idx] > 0 ? this.shipData.stars[idx] : 0,
+									api_alv: this.shipData.ace[idx] > 0 ? this.shipData.ace[idx] : undefined,
+									api_locked: 1 // assume all gear locked
+								}));
+							return slot ? this.gearData : this.gearData.slice(0, -1);
+						case 'undefined':
+							return this.equipment(false);
+						case 'function':
+							const equipObjs = this.equipment();
+							equipObjs.forEach((item, index) => {
+								slot.call(this, item.itemId, index, item);
+							});
+							// forEach always return undefined, return equipment for chain use
+							return equipObjs;
+					}
+				};
+				ship.nakedAsw = function() {
+					return this.as[0];
+				};
+
+				ship.fp[0] = shipMaster.api_houg[0] + (shipData.kyouka[0] || 0) + ship.equipmentTotalStats("houg");
+				ship.tp[0] = shipMaster.api_raig[0] + (shipData.kyouka[1] || 0) + ship.equipmentTotalStats("raig");
+				ship.as[0] = shipData.stats.as;
+				ship.hp[1] = this.maxHPs.ally[this.playerCombined && fleetnum === 1 ? position + 6 : position];
+				ship.mod = shipData.kyouka;
+
+				if (ship.as[0] === undefined){
+					const aswBound = WhoCallsTheFleetDb.getStatBound(shipData.mst_id, 'asw');
+					ship.as[0] = WhoCallsTheFleetDb.estimateStat(aswBound, shipData.level);
+				}
+
+				if(this.fleetStates && this.fleetStates.length) {
+					ship.ammo = this.fleetStates[this.playerCombined ? fleetnum : 0].ammo[position];
+				} else {
+					// Make a rough guess of current ammo percentage remaining with event node consumption
+					let ammoPercent = 100,
+						reachedNode = false;
+					// Ignore maelstrom/whirlpool for now
+					this.nodeData.nodes.forEach(node => {
+						if (this.id === node.id) { reachedNode = true; }
+						if (reachedNode) { return; }
+						// Cannot tell submarine node from node list?
+						// Normal battle, yasen/day
+						if (node.eventId === 4) { ammoPercent -= (node.eventKind === 2 || node.eventKind === 3) ? 10 : 20; }
+						// Boss node
+						if (node.eventId === 5) { ammoPercent -= 20; }
+						// Aerial battle
+						if (node.eventId === 7 && node.eventKind === 4 ) { ammoPercent -= 20; }
+						// Aerial raid
+						if (node.eventId === 10 ) { ammoPercent -= 4;}
+					});
+					ship.ammo = shipMaster.api_bull_max * ammoPercent / 100;
+					ship.ammo = ship.ammo > 0 ? ship.ammo : 0;
+				}
+			}
+
+			if (!attacks || !attacks.length) { return; }
+			if (ship.isDummy()) { return; }
+			attacks.forEach(attack => {
+				// BATTLE CONDITIONS
+				const damage = attack.damage,
+					cutin = attack.cutin >= 0 ? attack.cutin : attack.ncutin,
+					acc = attack.acc,
+					hp = attack.hp,
+					ciequip = attack.equip,
+					time = attack.cutin >= 0 ? 'Day' : 'Night';
+
+				let nightSpecialAttackType = [],
+					daySpecialAttackType = [];
+
+				// ENEMY STATS
+				const combinedFleetIndexAlign = 6;
+				const isAgainstEnemyEscort = this.isEnemyCombined &&
+					this.activatedEnemyFleet !== undefined && this.activatedEnemyFleet !== 1,
+					targetIndex = attack.target[0] - (isAgainstEnemyEscort ? combinedFleetIndexAlign : 0);
+				// Enemy arrays will be only 6 elements if abyssal escort fleet activated on night battle
+				let target = this.eships[targetIndex],
+					enemyShip = KC3Master.ship(target);
+
+				// Simulate an enemy ship to obtain armor stats from equipment,
+				// if uses actual ship master ID and methods in KC3Gear, armor bonuses from equipment could be counted for PvP,
+				// but if don't want to consume memory to simulate KC3Ship and KC3Gear instances, just use:
+				const getEquipTotalArmor = gearArr => gearArr.reduce((armor, mstId) => (
+					armor + (mstId > 0 ? KC3Master.slotitem(mstId).api_souk || 0 : 0)
+				), 0);
+				let eShipEquipArmor = getEquipTotalArmor(this.eSlot[targetIndex] || []);
+				/*
+				const eShip = new KC3Ship();
+				eShip.rosterId = 1;
+				eShip.masterId = target;
+				eShip.items = this.eSlot[targetIndex];
+				// eSlot contains gear master IDs, have to simulate the KC3Gear converter too
+				eShip.equipment = function(slot) {
+					// only implement the method to return all gears for equipmentTotalStats
+					this.gearData = this.gearData ||
+						this.items.map((masterId, idx) => new KC3Gear({
+							api_id: masterId > 0 ? idx + 1 : 0,
+							api_slotitem_id: masterId > 0 ? masterId : 0,
+							// no info about enemy equipment's stars and ace
+							api_level: 0,
+							api_locked: 0
+						}));
+					// there is no ex item in eSlot, so add a dummy one
+					return slot ? this.gearData.concat(new KC3Gear()) : this.gearData;
+				};
+				let eShipEquipArmor = eShip.equipmentTotalStats("souk");
+				*/
+
+				let { isSubmarine, isLand } = ship.estimateTargetShipType(target);
+				// PLAYER SPECIAL ATTACKS
+				/*
+				 * CVCI/CVNCI/new DD cut-ins have varying damage modifier, but for now just take the highest one and see if actual exceeds it
+				 * Technically possible to guess exact cut-in from api_si_list (included per attack)
+				 * Since multiple cutins are possible per ship, reassignment to match cutin number from estimation is required
+				 */
+				if (time === "Night") {
+					nightSpecialAttackType = ship.estimateNightAttackType(target, true);
+					// In case of re-roll attacks like 7/8
+					if (nightSpecialAttackType[1] !== cutin) {
+						nightSpecialAttackType = KC3Ship.specialAttackTypeNight(cutin);
+					}
+				} else {
+					daySpecialAttackType = ship.estimateDayAttackType(target, true, 1);
+					if (daySpecialAttackType[1] !== cutin) {
+						// Artillery spotting will keep re-rolling sp attacks
+						daySpecialAttackType = KC3Ship.specialAttackTypeDay(cutin);
+					}
+				}
+				
+				const combinedFleetType = this.playerCombinedType || PlayerManager.combinedFleet || 0;
+				const warfareType = !isSubmarine ? 'Shelling' : 'Antisub',
+					powerBonus = ship.combinedFleetPowerBonus(combinedFleetType, this.isEnemyCombined, warfareType),
+					combinedFleetFactor = !this.playerCombined ? powerBonus.main : fleetnum === 0 ? powerBonus.main : powerBonus.escort,
+					damageStatus = ['taiha', 'chuuha', 'shouha', 'normal'].find((_, idx) => (idx + 1) / 4 >= hp / ship.hp[1]);
+
+				let eHp = attack.ehp || this.maxHPs.enemy[targetIndex];
+				const unexpectedFlag = isLand || KC3Meta.isEventWorld(KC3SortieManager.map_world) || KC3Node.debugPrediction();
+
+				// Simulating each attack
+				for (let i = 0; i < damage.length; i++) {
+					const result = {};
+					// Remove Flagship protection flag
+					damage[i] = Math.floor(damage[i]);
+					// Skip unused values in CVNCI array of [x, -1, -1]
+					if (damage[i] === -1) { break; }
+
+					// Also ignore scratch damage or miss
+					const scratchDamage = eHp * 0.06 + (eHp - 1) * 0.08;
+					if ((unexpectedFlag || damage[i] > scratchDamage) && acc[i] > 0) {
+
+						const damageInstance = {};
+						const isNightContacted = this.fcontactId === 102;
+						let unexpectedDamage = false,
+							newDepthChargeBonus = 0,
+							remainingAmmoModifier = 1,
+							armor = ((this.eParam[targetIndex] || [])[3] || 0) + eShipEquipArmor;
+
+						let power = time === 'Day' ? ship.shellingFirePower(combinedFleetFactor)
+							: !isLand ? ship.nightBattlePower(isNightContacted) :
+							ship.shellingFirePower(isNightContacted ? 0 : -5);
+						if (warfareType === 'Antisub') { power = ship.antiSubWarfarePower(); }
+						if (time === 'Night' && ship.canCarrierNightAirAttack()) {
+							power = ship.nightAirAttackPower(isNightContacted);
+						}
+						const shellingPower = power;
+						({power} = ship.applyPrecapModifiers(power, warfareType, engagement, formation,
+							nightSpecialAttackType, this.isNightStart, this.playerCombined, target, damageStatus));
+						const precapPower = power;
+						({power} = ship.applyPowerCap(power, time, warfareType));
+
+						// Simplify aerial attack check to just carrier check, unlikely that need to check for edge cases like Hayasui/old CV night attacks
+						({power, newDepthChargeBonus, remainingAmmoModifier} = ship.applyPostcapModifiers(power, warfareType,
+							daySpecialAttackType, 0, acc[i] === 2, ship.isCarrier(), enemyShip.api_stype, false, target));
+						const postcapPower = power;
+						armor -= newDepthChargeBonus;
+
+						const maxDam = Math.floor((power - armor * 0.7) * remainingAmmoModifier);
+						const minDam = Math.floor((power - armor * 0.7 - (armor - 1) * 0.6) * remainingAmmoModifier);
+						if (damage[i] > maxDam) {
+							unexpectedDamage = damage[i] > scratchDamage;
+						}
+						if (unexpectedDamage || unexpectedFlag) {
+							// TsunDB formatting
+							damageInstance.actualDamage = damage[i];
+							damageInstance.isCritical = acc[i] === 2;
+							damageInstance.expectedDamage = [minDam, maxDam];
+							result.damageInstance = damageInstance;
+
+							const hpPercent = Math.max(0, Math.qckInt('floor', hp / ship.hp[1], 3) * 100);
+							result.ship = {
+								id: ship.masterId,
+								damageStatus: Math.ceil(hpPercent / 25),
+								equip: ship.equipment(true).map(g => g.masterId || -1),
+								improvements: ship.equipment(true).map(g => g.stars || -1),
+								proficiency: ship.equipment(true).map(g => g.ace || -1),
+								slots: ship.slots,
+								stats: ship.nakedStats(),
+								position: position,
+								formation: formation,
+								isMainFleet: !this.playerCombined ? true : fleetnum == 0,
+								combinedFleet: combinedFleetType,
+								rAmmoMod: remainingAmmoModifier,
+								spAttackType: cutin,
+								cutinEquips: ciequip,
+								shellingPower: shellingPower,
+								armorReduction: newDepthChargeBonus,
+								precapPower: precapPower,
+								postcapPower: postcapPower,
+								time: time,
+							};
+
+							result.enemy = {
+								id: target,
+								equip: this.eSlot[targetIndex],
+								formation: this.eformation,
+								position: targetIndex,
+								armor: armor,
+								isMainFleet: !this.EnemyCombined ? true : attack.target[i] < combinedFleetIndexAlign,
+								hp: eHp,
+							};
+
+							result.isUnexpected = unexpectedDamage;
+							result.landFlag = isLand;
+							result.engagement = engagement;
+							result.debuffed = !!this.debuffed;
+							unexpectedList.push(result);
+						}
+					}
+					// Updating eHp (if needed for multi-hit)
+					eHp -= damage[i];
+				}
+			});
+		});
+
+		if (unexpectedList.length && KC3Node.debugPrediction()) {
+			console.debug("Unexpected damage predicted", unexpectedList);
+		}
+		return unexpectedList;
+	};
+
+	KC3Node.prototype.buildUnexpectedDamageMessage = function(unexpectedList = this.unexpectedList){
+		let tooltips = "";
+		if(Array.isArray(unexpectedList)) {
+			unexpectedList.forEach(a => {
+				if(a.isUnexpected) {
+					const shipMaster = KC3Master.ship(a.ship.id),
+						attackerName = KC3Meta.shipName(shipMaster.api_name);
+					const defenderMstId = a.enemy.id,
+						defenderName = KC3Meta.abyssShipName(defenderMstId);
+					const dmg = a.damageInstance;
+					if(tooltips) tooltips += "\n";
+					tooltips += KC3Meta.term("BattleUnexpectedDamageTip").format(
+						attackerName, defenderName, defenderMstId,
+						dmg.actualDamage, dmg.expectedDamage[0], dmg.expectedDamage[1]
+					);
+				}
+			});
+		}
+		return tooltips;
+	};
 	
-	KC3Node.prototype.saveEnemyEncounterInfo = function(battleData, updatedName){
-		// Update name only if new name offered
+	KC3Node.prototype.saveEnemyEncounterInfo = function(battleData, updatedName, baseExp, isAirBaseRaid){
+		// Update name and base exp only if new name offered
 		if(!battleData && !!updatedName){
 			if(!!this.enemyEncounter.uniqid){
 				this.enemyEncounter.name = updatedName;
+				if(baseExp > 0){ this.enemyEncounter.exp = baseExp; }
 				KC3Database.Encounter(this.enemyEncounter, false);
 				return true;
 			}
@@ -1580,13 +2225,15 @@ Used by SortieManager
 			world: KC3SortieManager.map_world,
 			map: KC3SortieManager.map_num,
 			diff: KC3SortieManager.map_difficulty,
-			node: this.id,
+			node: isAirBaseRaid ? KC3Meta.getAirBaseFakeEdge() : this.id,
 			form: this.eformation,
 			// eships is padded array
 			ke: JSON.stringify(this.eships)
 		};
 		ed.uniqid = [ed.world,ed.map,ed.diff,ed.node,ed.form,ed.ke].filter(v => !!v).join("/");
 		KC3Database.Encounter(ed, true);
+		// Do not continue to save abyssal stats, thank to missing `api_eParam` on Land-Base Air Raid
+		if(!!isAirBaseRaid) { return true; }
 		this.enemyEncounter = ed;
 		// Save enemy info, maybe main fleet
 		(this.eshipsMain || this.eships).forEach((enemyId, i) => {
@@ -1632,7 +2279,13 @@ Used by SortieManager
 		if(ConfigManager.isNotToSaveSortie(...KC3SortieManager.getSortieMap())){
 			return;
 		}
-		var b = {
+		const b = this.buildBattleDBData(resultData);
+		console.log("Saving battle", b);
+		KC3Database.Battle(b);
+	};
+	
+	KC3Node.prototype.buildBattleDBData = function( resultData = {} ) {
+		const b = {
 			// TODO ref to the uniq key of sortie table which is not the auto-increment ID
 			// foreign key to sortie
 			sortie_id: (this.sortie || KC3SortieManager.getSortieId()),
@@ -1647,31 +2300,39 @@ Used by SortieManager
 			time: this.stime,
 			baseEXP: this.nodalXP,
 			hqEXP: resultData.api_get_exp || 0,
-			shizunde: this.lostShips.map(function(fleetLost){
+			shizunde: this.lostShips ? this.lostShips.map(function(fleetLost){
 				return fleetLost.map(function(shipSunk){
 					return KC3ShipManager.get(shipSunk).masterId;
 				});
-			}),
-			mvp: this.mvps
+			}) : [],
+			mvp: this.mvps,
+			// Save fleet current states (fuel, ammo, slots, etc) at the start of the battle
+			fleetStates: KC3SortieManager.getBattleFleetStates()
 		};
 		// Optional properties
 		// Air raid moved to proper place `sortie.nodes`, no longer here
 		//if(this.battleDestruction){ b.airRaid = this.battleDestruction; }
 		if(this.isBoss()){ b.boss = true; }
-		console.log("Saving battle", b);
-		KC3Database.Battle(b);
+		// optional drop item (useitem & slotitem), not added into DB index yet
+		if(this.dropUseitem > 0){ b.useitem = this.dropUseitem; }
+		if(this.dropSlotitem > 0){ b.slotitem = this.dropSlotitem; }
+		// btw, event map clearing award items not saved yet, see `api_get_eventitem`
+		return b;
 	};
 	
 	KC3Node.prototype.savePvPOnDB = function( resultData ){
 		// Ignore if not saving to DB is demanded
 		if(!ConfigManager.idbSavePvP) { return; }
 		var p = {
-			fleet: PlayerManager.fleets[KC3SortieManager.fleetSent-1].sortieJson(),
-			enemy: [], // Unused
+			fleet: PlayerManager.fleets[KC3SortieManager.fleetSent - 1].sortieJson(),
+			// Unused, included in following data
+			enemy: [],
 			data: (this.battleDay || {}),
 			yasen: (this.battleNight || {}),
 			rating: this.rating,
 			baseEXP: this.nodalXP,
+			// ID bound to PvP win count + 1, related to ledger type
+			sortie_name: KC3SortieManager.sortieName(2),
 			mvp: this.mvps,
 			time: KC3SortieManager.sortieTime
 		};

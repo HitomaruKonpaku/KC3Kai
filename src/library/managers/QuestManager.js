@@ -135,7 +135,7 @@ Uses KC3Quest objects to play around with
 			weekly: {
 				type: 'weekly',
 				key: 'timeToResetWeeklyQuests',
-				questIds: [214, 220, 213, 221, 228, 229, 241, 242, 243, 261, 302, 404, 410, 411, 613, 638, 703],
+				questIds: [214, 220, 213, 221, 228, 229, 241, 242, 243, 261, 302, 404, 410, 411, 613, 638, 676, 677, 703],
 				resetQuests: function () { KC3QuestManager.resetWeeklies(); },
 				calculateNextReset: function (serverTime) {
 					const nextDailyReset = new Date(
@@ -154,7 +154,7 @@ Uses KC3Quest objects to play around with
 			monthly: {
 				type: 'monthly',
 				key: 'timeToResetMonthlyQuests',
-				questIds: [249, 256, 257, 259, 265, 264, 266, 311, 424, 626, 628, 645],
+				questIds: [249, 256, 257, 259, 265, 264, 266, 311, 318, 424, 626, 628, 645],
 				resetQuests: function () { KC3QuestManager.resetMonthlies(); },
 				calculateNextReset: function (serverTime) {
 					const nextDailyReset = new Date(
@@ -168,7 +168,7 @@ Uses KC3Quest objects to play around with
 			quarterly: {
 				type: 'quarterly',
 				key: 'timeToResetQuarterlyQuests',
-				questIds: [426, 428, 637, 643, 663, 675, 822, 854, 861, 862, 873],
+				questIds: [426, 428, 637, 643, 663, 675, 678, 680, 686, 822, 854, 861, 862, 873, 875, 888],
 				resetQuests: function () { KC3QuestManager.resetQuarterlies(); },
 				calculateNextReset: function (serverTime) {
 					const nextMonthlyReset = new Date(
@@ -265,14 +265,6 @@ Uses KC3Quest objects to play around with
 						this.isOpen( questList[ctr].api_no, false );
 						this.isActive( questList[ctr].api_no, false );
 						break;
-				}
-			}
-			
-			// submit untranslated quests to kc3kai website
-			if(ConfigManager.KC3DBSubmission_enabled){
-				if(untranslated.length > 0){
-					localStorage.reportedQuests = JSON.stringify(reportedQuests);
-					KC3DBSubmission.sendQuests( JSON.stringify(untranslated) );
 				}
 			}
 			
@@ -377,10 +369,15 @@ Uses KC3Quest objects to play around with
 				this.isActive(questId, false);
 			}
 		},
-
-		resetQuestCounter: function( questId ){
-			if (typeof this.list["q"+questId] != "undefined"){
-				this.list["q"+questId].tracking[0][0] = 0;
+		
+		resetQuestCounter: function( questId, forced ){
+			var quest = this.list["q"+questId];
+			if(quest !== undefined && Array.isArray(quest.tracking)){
+				for(var ctr in quest.tracking){
+					var progress = quest.tracking[ctr];
+					if(progress.length > 1 && (!!forced || progress[0] < progress[1]))
+						progress[0] = 0;
+				}
 			}
 		},
 		
@@ -389,10 +386,10 @@ Uses KC3Quest objects to play around with
 				this.resetQuest( questIds[ctr] );
 			}
 		},
-
-		resetCounterLoop: function( questIds ){
+		
+		resetCounterLoop: function( questIds, forced ){
 			for(var ctr in questIds){
-				this.resetQuestCounter( questIds[ctr] );
+				this.resetQuestCounter( questIds[ctr], forced );
 			}
 		},
 		
@@ -400,7 +397,11 @@ Uses KC3Quest objects to play around with
 			this.load();
 			console.log("Resetting dailies");
 			this.resetLoop(this.getRepeatableIds('daily'));
-			this.resetCounterLoop([311]);
+			// Monthly PvP counter reset to 0 if not click complete in a day:
+			// C8
+			this.resetCounterLoop([311], true);
+			// Daily counter not reset for monthly PvP: C16
+			//this.resetCounterLoop([318], false);
 			this.save();
 		},
 		
@@ -467,12 +468,18 @@ Uses KC3Quest objects to play around with
 				"259": // Bm4 Sortie 3 BB (4 classes below only) and 1 CL
 					({fleetSent = KC3SortieManager.fleetSent}) => {
 						const fleet = PlayerManager.fleets[fleetSent - 1];
-						return fleet.countShip([
-								131, 136, 143, 148,         // Yamato-class
-								80, 275, 541, 81, 276,      // Nagato-class
-								77, 82, 87, 88,             // Ise-class
-								26, 286, 411, 27, 287, 412  // Fusou-class
+						return fleet.countShipClass([
+								37, // Yamato-class
+								19, // Nagato-class
+								2,  // Ise-class
+								26, // Fusou-class
 							]) === 3 && fleet.countShipType(3) === 1;
+					},
+				"318": // C16 PvP with 2 more CLs in 1st fleet
+					() => {
+						const firstFleet = PlayerManager.fleets[0];
+						return KC3SortieManager.isPvP() && KC3SortieManager.fleetSent == 1 &&
+							firstFleet.countShipType(3) >= 2;
 					},
 				"626": // F22 Have 1 Skilled Crew Member. Houshou as secretary, equip her with a >> Type 0 Fighter Model 21
 					() => {
@@ -501,18 +508,40 @@ Uses KC3Quest objects to play around with
 					({fleetSent = KC3SortieManager.fleetSent}) => {
 						const fleet = PlayerManager.fleets[fleetSent - 1];
 						return (fleet.countShipType(10) +
-							fleet.countShipType(22)) === 2;
+							fleet.countShipType(22)) >= 2;
 					},
 				"862": // Bq4 Sortie 1 AV, 2 CL
 					({fleetSent = KC3SortieManager.fleetSent}) => {
 						const fleet = PlayerManager.fleets[fleetSent - 1];
-						return fleet.countShipType(16) === 1
-							&& fleet.countShipType(3) === 2;
+						return fleet.countShipType(16) >= 1
+							&& fleet.countShipType(3) >= 2;
 					},
 				"873": // Bq5 Sortie 1 CL
 					({fleetSent = KC3SortieManager.fleetSent}) => {
 						const fleet = PlayerManager.fleets[fleetSent - 1];
 						return fleet.countShipType(3) >= 1;
+					},
+				"875": // Bq6 Sortie DesDiv 31
+					({fleetSent = KC3SortieManager.fleetSent}) => {
+						const fleet = PlayerManager.fleets[fleetSent - 1];
+						return fleet.countShip(543) >= 1 && // Naganami K2
+							fleet.countShip([
+								345, // Takanami Kai
+								359, // Okinami Kai
+								344, // Asashimo Kai
+							]) >= 1;
+					},
+				"888": // Bq7 Sortie New Mikawa Fleet
+					({fleetSent = KC3SortieManager.fleetSent}) => {
+						const fleet = PlayerManager.fleets[fleetSent - 1];
+						return fleet.countShip(69)  + // Choukai any remodel
+							   fleet.countShip(61)  + // Aoba any remodel
+							   fleet.countShip(123) + // Kinugasa any remodel
+							   fleet.countShip(60)  + // Kako any remodel
+							   fleet.countShip(59)  + // Furutaka any remodel
+							   fleet.countShip(51)  + // Tenryuu any remodel
+							   fleet.countShip(115)   // Yuubari any remodel
+							>= 4;
 					},
 			};
 			if(questObj.id && questCondsLibrary[questId]){

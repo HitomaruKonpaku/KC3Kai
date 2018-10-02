@@ -16,10 +16,23 @@
 					- (ls.materials.length - ls.materialsUsed)
 					|| rs.materials.length - ls.materials.length
 					|| ls.id - rs.id);
-			this.defineSimpleFilter("materials", [], 0, (index, ship) => ship.materials.length);
+			this.defineSimpleFilter("materials", [], 0, (fd, ship) => ship.materials.length);
+			this.defineSimpleFilter("hideUnlock", [], 0, (fd, ship) => !fd.currentIndex || !!ship.locked);
+			this.defineSimpleFilter("hideDupe", [], 0, (fd, ship) => {
+				if(!fd.currentIndex) return true;
+				const dupeShips = this.shipList.filter(s => (
+					ship.id !== s.id && RemodelDb.originOf(ship.masterId) === RemodelDb.originOf(s.masterId)
+				));
+				if(!dupeShips.length) return true;
+				const dupeRemodelLevels = dupeShips.map(s => RemodelDb.remodelGroup(s.masterId).indexOf(s.masterId));
+				const thisRemodelLevel = RemodelDb.remodelGroup(ship.masterId).indexOf(ship.masterId);
+				return thisRemodelLevel >= Math.max(...dupeRemodelLevels);
+			});
 			this.showListRowCallback = this.showRemodelMaterials;
 			this.heartLockMode = 2;
 			this.viewType = "owned";
+			this.hideUnlock = false;
+			this.hideDupe = false;
 		}
 
 		/* RELOAD
@@ -34,10 +47,22 @@
 		Places data onto the interface from scratch.
 		---------------------------------*/
 		execute() {
-			$(".tab_blueprints .view_type input[type=radio][name=view_type]")
-				.on("change", function() {
-				const viewType = $("input[type=radio][name=view_type]:checked").val();
-				KC3StrategyTabs.gotoTab(undefined, viewType);
+			const joinPageParams = () => (
+				[this.viewType,
+					this.hideUnlock ? "locked" : this.hideDupe && "all",
+					this.hideDupe && "nodupe"].filter(v => !!v)
+			);
+			$(".tab_blueprints .view_type input[type=radio][name=view_type]").on("change", (e) => {
+				this.viewType = $(".view_type input[type=radio][name=view_type]:checked").val();
+				KC3StrategyTabs.gotoTab(undefined, ...joinPageParams());
+			});
+			$(".tab_blueprints .view_type input[type=checkbox][name=hide_unlock]").on("change", (e) => {
+				this.hideUnlock = $(".view_type input[type=checkbox][name=hide_unlock]").prop("checked");
+				KC3StrategyTabs.gotoTab(undefined, ...joinPageParams());
+			});
+			$(".tab_blueprints .view_type input[type=checkbox][name=hide_dupe]").on("change", (e) => {
+				this.hideDupe = $(".view_type input[type=checkbox][name=hide_dupe]").prop("checked");
+				KC3StrategyTabs.gotoTab(undefined, ...joinPageParams());
 			});
 			this.shipListDiv = $(".tab_blueprints .ship_list");
 			this.shipRowTemplateDiv = $(".tab_blueprints .factory .ship_item");
@@ -49,21 +74,33 @@
 				$(".tab_blueprints .owned").hide();
 			});
 			this.shipListDiv.on("postShow", this.showTotalMaterials);
-			this.loadView(KC3StrategyTabs.pageParams[1]);
+			this.loadView(KC3StrategyTabs.pageParams[1],
+				KC3StrategyTabs.pageParams[2] === "locked",
+				KC3StrategyTabs.pageParams[3] === "nodupe");
 		}
 
-		loadView(viewType = "owned") {
+		loadView(viewType = "owned", hideUnlock = false, hideDupe = false) {
 			this.viewType = viewType;
+			this.hideUnlock = hideUnlock;
+			this.hideDupe = hideDupe;
 			$(".tab_blueprints .view_type input[type=radio][name=view_type][value={0}]"
 				.format(this.viewType)).prop("checked", true);
+			$(".tab_blueprints .view_type input[type=checkbox][name=hide_unlock]")
+				.prop("checked", this.hideUnlock);
+			$(".tab_blueprints .view_type input[type=checkbox][name=hide_dupe]")
+				.prop("checked", this.hideDupe);
 			switch(this.viewType) {
 				case "owned":
 					this.setSorter("lv");
 					this.prepareShipList(true, this.mapRemodelMaterials);
+					this.filterDefinitions.hideUnlock.currentIndex = this.hideUnlock & 1;
+					this.filterDefinitions.hideDupe.currentIndex = this.hideDupe & 1;
 					break;
 				case "all":
 					this.setSorter("type");
 					this.prepareShipListFromRemodelDb();
+					this.filterDefinitions.hideUnlock.currentIndex = 0;
+					this.filterDefinitions.hideDupe.currentIndex = 0;
 					break;
 				default:
 					console.warn("Unsupported view type:", this.viewType);
@@ -77,7 +114,7 @@
 			this.shipList.length = 0;
 			Object.keys(allRemodelInfo).forEach(key => {
 				const remodelInfo = allRemodelInfo[key];
-				if(remodelInfo.blueprint || remodelInfo.catapult) {
+				if(remodelInfo.blueprint || remodelInfo.catapult || remodelInfo.report || remodelInfo.gunmat) {
 					const shipMaster = KC3Master.ship(remodelInfo.ship_id_from);
 					const shipData = {
 						id: remodelInfo.ship_id_from,
@@ -85,6 +122,7 @@
 						stype: shipMaster.api_stype,
 						ctype: shipMaster.api_ctype,
 						sortno: shipMaster.api_sortno,
+						sortId: shipMaster.api_sort_id,
 						name: KC3Meta.shipName(shipMaster.api_name),
 						level: remodelInfo.level,
 						levelClass: "",
@@ -136,6 +174,22 @@
 						});
 						mappedObj.materialsUsed += isUsed;
 					}
+					if(remodelInfo.report) {
+						mappedObj.materials.push({
+							icon: 78,
+							info: remodelInfo,
+							used: isUsed
+						});
+						mappedObj.materialsUsed += isUsed;
+					}
+					if(remodelInfo.gunmat) {
+						mappedObj.materials.push({
+							icon: 75,
+							info: remodelInfo,
+							used: isUsed
+						});
+						mappedObj.materialsUsed += isUsed;
+					}
 				}
 			}
 			return mappedObj;
@@ -149,7 +203,7 @@
 					.addClass("ship_field icon")
 					.toggleClass("limited", this.viewType === "all");
 				$("<img />")
-					.attr("src", "../../assets/img/useitems/" + material.icon + ".png")
+					.attr("src", "/assets/img/useitems/" + material.icon + ".png")
 					.appendTo(iconDiv);
 				$("<span></span>")
 					.text(KC3Meta.useItemName(material.icon))
@@ -161,7 +215,7 @@
 				const shipDiv = $("<div />")
 					.addClass("ship_field icon")
 					.toggleClass("limited", this.viewType === "all");
-				$("<img />").attr("src", "../../assets/img/ui/arrow.png")
+				$("<img />").attr("src", "/assets/img/ui/arrow.png")
 					.appendTo(shipDiv);
 				$("<img />")
 					.attr("src", KC3Meta.shipIcon(firstMaterial.info.ship_id_to))
@@ -183,11 +237,15 @@
 			
 			const totalItemDiv = $("<div />").addClass("summary_item").appendTo(totalDiv);
 			$("<img />")
-				.attr("src", "../../assets/img/client/ship.png")
+				.attr("src", "/assets/img/client/ship.png")
 				.appendTo(totalItemDiv);
 			$("<span></span>")
 				.text("x{0}".format(shipList.length))
 				.appendTo(totalItemDiv);
+			if(!shipList.length) {
+				totalDiv.parent().show();
+				return;
+			}
 			
 			// Count total and used remodel materials
 			const countMaterials = (resultMap = ({}), filter = (m => true)) => {
@@ -195,10 +253,14 @@
 					.filter(filter).map(
 					m => new Array(m.icon === 58 ? m.info.blueprint :
 									m.icon === 65 ? m.info.catapult :
+									m.icon === 78 ? m.info.report :
+									m.icon === 75 ? m.info.gunmat :
 									1).fill(m.icon)
-				))).map(icon => {
+				))).map(iconArr => {
+					const icon = iconArr[0];
+					const count = iconArr.length;
 					resultMap[icon] = resultMap[icon] || 0;
-					resultMap[icon] += 1;
+					resultMap[icon] += count;
 				});
 				return resultMap;
 			};
@@ -217,7 +279,7 @@
 			for(let icon in materialCount) {
 				const totalItemDiv = $("<div />").addClass("summary_item").appendTo(totalDiv);
 				const iconImg = $("<img />")
-					.attr("src", "../../assets/img/useitems/" + icon + ".png")
+					.attr("src", "/assets/img/useitems/" + icon + ".png")
 					.appendTo(totalItemDiv);
 				$("<span></span>")
 					.text("x{0}/{1}".format(
@@ -226,10 +288,18 @@
 					)).appendTo(totalItemDiv);
 				switch(Number(icon)) {
 					case 58:
+						appendOwnedItem(iconImg.clone().attr("src", "/assets/img/useitems/57.png"),
+							PlayerManager.consumables.medals);
 						appendOwnedItem(iconImg, PlayerManager.consumables.blueprints);
 						break;
 					case 65:
 						appendOwnedItem(iconImg, PlayerManager.consumables.protoCatapult);
+						break;
+					case 75:
+						appendOwnedItem(iconImg, PlayerManager.consumables.newArtilleryMaterial);
+						break;
+					case 78:
+						appendOwnedItem(iconImg, PlayerManager.consumables.actionReport);
 						break;
 				}
 			}
@@ -249,7 +319,7 @@
 			$("<span></span>").text(
 				KC3Meta.shipName(KC3Master.ship(remodelInfo.ship_id_from).api_name)
 			).appendTo(line);
-			$("<img />").attr("src", "../../assets/img/ui/arrow.png")
+			$("<img />").attr("src", "/assets/img/ui/arrow.png")
 				.css("vertical-align", "text-top")
 				.css("margin", "0px 5px 0px 5px")
 				.appendTo(line);
@@ -269,7 +339,7 @@
 				.text("{0} {1}".format(KC3Meta.term("LevelShort"), remodelInfo.level))
 				.appendTo(line);
 			$("<img />")
-				.attr("src", "../../assets/img/client/ammo.png")
+				.attr("src", "/assets/img/client/ammo.png")
 				.width(15).height(15).css("margin-right", 2)
 				.css("vertical-align", "top")
 				.appendTo(line);
@@ -277,11 +347,11 @@
 				.text(remodelInfo.ammo)
 				.appendTo(line);
 			$("<img />")
-				.attr("src", "../../assets/img/client/steel.png")
+				.attr("src", "/assets/img/client/steel.png")
 				.width(15).height(15).css("margin-right", 2)
 				.css("vertical-align", "top")
 				.appendTo(line);
-			$("<span></span>").css("margin-right", 2)
+			$("<span></span>").css("margin-right", 10)
 				.text(remodelInfo.steel)
 				.appendTo(line);
 			title.append(line);
@@ -290,7 +360,7 @@
 			line = $("<div />");
 			if(remodelInfo.blueprint) {
 				$("<img />")
-					.attr("src", "../../assets/img/useitems/58.png")
+					.attr("src", "/assets/img/useitems/58.png")
 					.width(15).height(15).css("margin-right", 2)
 					.css("vertical-align", "top")
 					.appendTo(line);
@@ -300,17 +370,37 @@
 			}
 			if(remodelInfo.catapult) {
 				$("<img />")
-					.attr("src", "../../assets/img/useitems/65.png")
+					.attr("src", "/assets/img/useitems/65.png")
 					.width(15).height(15).css("margin-right", 2)
 					.css("vertical-align", "top")
 					.appendTo(line);
-				$("<span></span>").css("margin-right", 2)
+				$("<span></span>").css("margin-right", 10)
 					.text(remodelInfo.catapult)
+					.appendTo(line);
+			}
+			if(remodelInfo.report) {
+				$("<img />")
+					.attr("src", "/assets/img/useitems/78.png")
+					.width(15).height(15).css("margin-right", 2)
+					.css("vertical-align", "top")
+					.appendTo(line);
+				$("<span></span>").css("margin-right", 10)
+					.text(remodelInfo.report)
+					.appendTo(line);
+			}
+			if(remodelInfo.gunmat) {
+				$("<img />")
+					.attr("src", "/assets/img/useitems/75.png")
+					.width(15).height(15).css("margin-right", 2)
+					.css("vertical-align", "top")
+					.appendTo(line);
+				$("<span></span>").css("margin-right", 10)
+					.text(remodelInfo.gunmat)
 					.appendTo(line);
 			}
 			if(remodelInfo.devmat) {
 				$("<img />")
-					.attr("src", "../../assets/img/client/devmat.png")
+					.attr("src", "/assets/img/client/devmat.png")
 					.width(15).height(15).css("margin-right", 2)
 					.css("vertical-align", "top")
 					.appendTo(line);
@@ -320,11 +410,11 @@
 			}
 			if(remodelInfo.torch) {
 				$("<img />")
-					.attr("src", "../../assets/img/client/ibuild.png")
+					.attr("src", "/assets/img/client/ibuild.png")
 					.width(15).height(15).css("margin-right", 2)
 					.css("vertical-align", "top")
 					.appendTo(line);
-				$("<span></span>").css("margin-right", 2)
+				$("<span></span>").css("margin-right", 10)
 					.text(remodelInfo.torch)
 					.appendTo(line);
 			}

@@ -94,6 +94,10 @@ Saves and loads significant data for future use
 				}
 			});
 
+			if(KC3Meta.isAF() && this._raw.newShips[KC3Meta.getAF(4)] === undefined) {
+				this._raw.newShips[KC3Meta.getAF(4)] = KC3Meta.getAF(2) - KC3Master.newUpdatesExpiredAfter;
+				if(beforeCounts) beforeCounts[0] -= 1;
+			}
 			this.updateRemodelTable();
 			this.save();
 			this.available = true;
@@ -139,7 +143,7 @@ Saves and loads significant data for future use
 
 		all_ships :function(withAbyssals, withSeasonals){
 			var id, ss, as;
-			var ships = $.extend({}, this._raw.ship);
+			var ships = $.extend(true, {}, this._raw.ship);
 			if(!!withAbyssals && Object.keys(ships).length > 0
 				&& Object.keys(this._abyssalShips).length > 0){
 				for(id in this._abyssalShips){
@@ -166,7 +170,7 @@ Saves and loads significant data for future use
 				//ships[787] = this._seasonalShips[787];
 				// Seasonal data no longer leaked since 2017-04-05
 				// Seasonal data leaks again since 2017-09-12 if ID < 800
-				// Seasonal data leaking fixed again since 207-10-18
+				// Seasonal data leaking fixed again since 2017-10-18
 			}
 			return ships;
 		},
@@ -210,6 +214,30 @@ Saves and loads significant data for future use
 			delete this._raw.changedGraphs[id];
 		},
 
+		/**
+		 * Build image URI of asset resources (like ship, equipment) since KC2ndSeq (HTML5 mode) on 2018-08-17.
+		 * @see graph - replace old swf filename method (tho it's still available for now)
+		 * @param id - master id of ship or slotitem (also possible for furniture/useitem...)
+		 * @param type - [`card`, `banner`, `full`, `character_full`, `character_up`, `remodel`, `supply_character`, `album_status`] for ship;
+		 *               [`card`, `card_t`, `item_character`, `item_up`, `item_on`, `remodel`, `btxt_flat`, `statustop_item`, `airunit_banner`, `airunit_fairy`, `airunit_name`] for slotitem
+		 * @param shipOrSlot - `ship` or `slot`
+		 * @param isDamaged - for damaged ship CG, even some abyssal bosses
+		 * @param debuffedAbyssalSuffix - specify old suffix for debuffed abyssal boss full CG. btw suffix is `_d`
+		 */
+		png_file :function(id, type = "card", shipOrSlot = "ship", isDamaged = false, debuffedAbyssalSuffix = ""){
+			if(!id || id < 0 || !type || !shipOrSlot) return "";
+			const typeWithSuffix = type + (isDamaged && shipOrSlot === "ship" ? "_dmg" : "");
+			const typeWithPrefix = shipOrSlot + "_" + typeWithSuffix;
+			const key = str => str.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+			const getFilenameSuffix = (id, typeStr) => String(
+				1000 + 17 * (Number(id) + 7) *
+				KC3Meta.resourceKeys[(key(typeStr) + Number(id) * typeStr.length) % 100] % 8973
+			);
+			const paddedId = String(id).padStart(shipOrSlot === "slot" ? 3 : 4, "0"),
+				suffix = getFilenameSuffix(id, typeWithPrefix);
+			return `/${shipOrSlot}/${typeWithSuffix}/${paddedId}${debuffedAbyssalSuffix}_${suffix}.png`;
+		},
+
 		slotitem :function(id){
 			return !this.available ? false : this._raw.slotitem[id] || false;
 		},
@@ -232,6 +260,89 @@ Saves and loads significant data for future use
 
 		slotitem_equiptype :function(id){
 			return !this.available ? false : this._raw.slotitem_equiptype[id] || false;
+		},
+
+		equip_type :function(stype, shipId){
+			if(!this.available) return false;
+			// use ship specified equip types first if found
+			const equipTypeArr = shipId && this.equip_ship(shipId).api_equip_type;
+			if(equipTypeArr) return equipTypeArr;
+			const equipTypeObj = this.stype(stype).api_equip_type || {};
+			// remap equip types object of ship type to array
+			return Object.keys(equipTypeObj).filter(type => !!equipTypeObj[type]).map(id => Number(id));
+		},
+
+		equip_type_sp :function(slotitemId, defaultType){
+			return KC3Meta.specialEquipTypeMap[slotitemId] || defaultType;
+		},
+
+		equip_ship :function(shipId){
+			const equipShips = this._raw.equip_ship || {};
+			// look up ship specified equip types
+			return !this.available ? false :
+				equipShips[Object.keys(equipShips).find(i => equipShips[i].api_ship_id == shipId)] || false;
+		},
+
+		equip_exslot_type :function(equipTypes, stype, shipId){
+			if(!this.available) return false;
+			// remap general exslot types object to array
+			const generalExslotTypes = Object.keys(this._raw.equip_exslot).map(i => this._raw.equip_exslot[i]);
+			const regularSlotTypes = equipTypes || this.equip_type(stype, shipId) || [];
+			return !regularSlotTypes.length ? generalExslotTypes :
+				generalExslotTypes.filter(type => regularSlotTypes.includes(type));
+		},
+
+		// @return different from functions above, returns a slotitem ID list, not type2 ID list
+		equip_exslot_ship :function(shipId){
+			const exslotShips = this._raw.equip_exslot_ship || {};
+			// find and remap ship specified exslot items
+			return !this.available ? [] : Object.keys(exslotShips)
+				.filter(i => exslotShips[i].api_ship_ids.includes(Number(shipId)))
+				.map(i => exslotShips[i].api_slotitem_id) || [];
+		},
+
+		equip_on :function(gearId, type2Id){
+			if(!this.available) return false;
+			if(!type2Id && gearId > 0) {
+				const slotitem = this.slotitem(gearId);
+				if(!slotitem) return false;
+				type2Id = this.equip_type_sp(slotitem.api_id, slotitem.api_type[2]);
+			}
+			const capableStypes = [];
+			$.each(this._raw.stype, (_, stype) => {
+				if(!!(stype.api_equip_type || {})[type2Id])
+					capableStypes.push(stype.api_id);
+			});
+			const capableShips = [], incapableShips = [];
+			$.each(this._raw.equip_ship, (_, equipShip) => {
+				const shipId = equipShip.api_ship_id,
+					shipMst = this.ship(shipId), stype = shipMst.api_stype;
+				const equipTypes = equipShip.api_equip_type;
+				if(!capableStypes.includes(stype) && equipTypes.includes(type2Id))
+					capableShips.push(shipId);
+				if(capableStypes.includes(stype) && !equipTypes.includes(type2Id))
+					incapableShips.push(shipId);
+			});
+			const generalExslotTypes = Object.keys(this._raw.equip_exslot).map(i => this._raw.equip_exslot[i]);
+			const isCapableToExslot = generalExslotTypes.includes(type2Id);
+			let exslotCapableShips = false;
+			if(gearId > 0) {
+				const exslotShips = this._raw.equip_exslot_ship || {};
+				const exslotGear = Object.keys(exslotShips)
+					.find(i => exslotShips[i].api_slotitem_id == gearId);
+				if(exslotGear) {
+					exslotCapableShips = exslotShips[exslotGear].api_ship_ids.slice(0);
+				} else {
+					exslotCapableShips = [];
+				}
+			}
+			return {
+				stypes: capableStypes,
+				includes: capableShips,
+				excludes: incapableShips,
+				exslot: isCapableToExslot,
+				exslotIncludes: exslotCapableShips,
+			};
 		},
 
 		useitem :function(id){
@@ -272,8 +383,58 @@ Saves and loads significant data for future use
 			return dispNo || String(id);
 		},
 
+		setCellData :function(startData){
+			// `api_mst_mapcell` removed since KC Phase 2,
+			// have to collect them from `api_req_map/start.api_cell_data`
+			const mapcell = this._raw.mapcell || {};
+			const world = startData.api_maparea_id, map = startData.api_mapinfo_no;
+			const newCellsArr = startData.api_cell_data;
+			if(world > 0 && map > 0 && Array.isArray(newCellsArr) && newCellsArr.length > 0) {
+				if(KC3Meta.isEventWorld(world)) {
+					// Clean existed cells of old events for small footprint,
+					// since old event maps data will be accumulated to big
+					$.each(mapcell, (id, cell) => {
+						if(KC3Meta.isEventWorld(cell.api_maparea_id) && cell.api_maparea_id < world)
+							delete mapcell[id];
+					});
+				} else {
+					// Clean existed cells of this map for old master data
+					const apiIds = newCellsArr.map(c => c.api_id);
+					$.each(mapcell, (id, cell) => {
+						if(!apiIds.includes(id) &&
+							cell.api_maparea_id === world && cell.api_mapinfo_no === map)
+							delete mapcell[id];
+					});
+				}
+				newCellsArr.forEach(cell => {
+					mapcell[cell.api_id] = {
+						api_map_no: Number([world, map].join('')),
+						api_maparea_id: world,
+						api_mapinfo_no: map,
+						api_id: cell.api_id,
+						api_no: cell.api_no,
+						api_color_no: cell.api_color_no,
+						api_passed: cell.api_passed,
+					};
+					if(cell.api_distance !== undefined)
+						mapcell[cell.api_id].api_distance = cell.api_distance;
+				});
+				this._raw.mapcell = mapcell;
+				this.save();
+			}
+		},
+
+		mapCell :function(world, map, edge){
+			const mapCells = {};
+			$.each(this._raw.mapcell || {}, (id, cell) => {
+				if(cell.api_maparea_id === world && cell.api_mapinfo_no === map)
+					mapCells[cell.api_no] = cell;
+			});
+			return edge === undefined ? mapCells : mapCells[edge] || {};
+		},
+
 		abyssalShip :function(id, isMasterMerged){
-			var master = !!isMasterMerged && this.isAbyssalShip(id) && $.extend({}, this.ship(id)) || {};
+			var master = !!isMasterMerged && this.isAbyssalShip(id) && $.extend(true, {}, this.ship(id)) || {};
 			return Object.keys(master).length === 0 &&
 				(Object.keys(this._abyssalShips).length === 0 || !this._abyssalShips[id]) ?
 				false : $.extend(master, this._abyssalShips[id]);

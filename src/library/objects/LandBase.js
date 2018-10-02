@@ -94,11 +94,52 @@
 	};
 	
 	/**
+	 * Calculate percentages of preliminary shotdown ratio for Air Defense on Enemy Raid.
+	 * @param dispSeiku - air battle state id, AS by default, see `api_disp_seiku`.
+	 * @return {Object} contains 4-elements Array properties of
+	 *         { `minShotdownSlots`, `maxShotdownSlots`, `formattedSlots` }.
+	 * @see https://kancolle.wikia.com/wiki/Land_Base_Aerial_Support#Enemy_Raid_2
+	 */
+	KC3LandBase.prototype.shotdownRatio = function(dispSeiku = 2){
+		const airStateMod = [6, 10, 8, 4, 1][dispSeiku] || 8;
+		const minShotdownSlots = [],
+			maxShotdownSlots = [],
+			formattedSlots = [];
+		// Slot-based matching
+		$.each(this.planes, function(i, p) {
+			let minShotdown = 0,
+				maxShotdown = 0;
+			if(p.api_slotid > 0 && p.api_state === 1){
+				const planeMaster = KC3GearManager.get(p.api_slotid).master();
+				const interceptStat = planeMaster.api_houk || 0,
+					antiBombingStat = planeMaster.api_houm || 0;
+				minShotdown = 6.5 * airStateMod +
+					3.5 * (antiBombingStat + airStateMod * Math.min(interceptStat, 1));
+				// Exclusive to the upper bound
+				maxShotdown = minShotdown + 3.5 * (airStateMod + antiBombingStat - 1);
+			} else {
+				// If there is no plane, then shotdown depends on air state only,
+				// same formula is still applied, without bonus from stats.
+				minShotdown = 6.5 * airStateMod;
+				maxShotdown = minShotdown + 3.5 * (airStateMod - 1);
+			}
+			formattedSlots.push(`${minShotdown}% ~ ${maxShotdown}%`);
+			minShotdownSlots.push(minShotdown / 100);
+			maxShotdownSlots.push(maxShotdown / 100);
+		});
+		return {
+			minShotdownSlots,
+			maxShotdownSlots,
+			formattedSlots,
+		};
+	};
+	
+	/**
 	 * Convert to new Object used to record sorties on indexedDB
 	 * Use masterId instead of rosterId, also record stars and ace of aircraft.
 	 */
 	KC3LandBase.prototype.sortieJson = function(){
-		var returnObj = {};
+		const returnObj = {};
 		if(this.rid > -1){
 			returnObj.rid = this.rid;
 			returnObj.range = this.range;
@@ -106,12 +147,12 @@
 			returnObj.planes = [];
 			$.each(this.planes, function(index, squad){
 				if(squad.api_slotid > 0){
-					var gear = KC3GearManager.get(squad.api_slotid);
+					const gear = KC3GearManager.get(squad.api_slotid);
 					returnObj.planes.push({
-						//squadron: squad.api_squadron_id,
+						squad: squad.api_squadron_id,
 						mst_id: gear.masterId,
 						count: squad.api_count,
-						//max_count: squad.api_max_count,
+						max_count: squad.api_max_count,
 						stars: gear.stars,
 						ace: gear.ace,
 						state: squad.api_state,

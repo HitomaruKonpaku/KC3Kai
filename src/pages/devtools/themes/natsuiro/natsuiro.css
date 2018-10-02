@@ -1,3 +1,5 @@
+@charset "utf-8";
+
 /* GLOBAL
 ------------------------------*/
 #factory {
@@ -22,6 +24,18 @@ html,body {
 }
 #critical.anim2 {
 	box-shadow:inset 0px 0px 60px rgba(255,0,0,0.8);
+}
+.jp_fonts {
+	font-family: "Tahoma", "Helvetica", "ヒラギノ角ゴ Pro W3", "Hiragino Kaku Gothic Pro", "Osaka", "メイリオ", "Meiryo", "Yu Gothic UI Semibold", "ＭＳ Ｐゴシック", "MS PGothic", sans-serif;
+}
+.kr_fonts {
+	font-family: "AppleGothic", "Malgun Gothic", "GulimChe", "Dotum", "UnDotum", sans-serif;
+}
+.scn_fonts {
+	font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans GB", "Wenquanyi Micro Hei", "WenQuanYi Zen Hei Sharp", "WenQuanYi Zen Hei", "Heiti SC", "ST Heiti", "SimHei", sans-serif;
+}
+.tcn_fonts {
+	font-family: "Microsoft JhengHei UI", "Microsoft JhengHei", "Heiti TC", "LiHei Pro Medium", sans-serif;
 }
 
 /* MODALS
@@ -266,7 +280,10 @@ html,body {
 }
 .module.admiral .admiral_name.censor {
 	color: transparent;
-	text-shadow: 0 0 8px rgba(255,220,0,0.9);
+	text-shadow: 0 0 8px rgba(255,220,0,0.4);
+}
+.module.admiral .admiral_name.censor:before {
+	content: 'U CANT SEE ME';
 }
 .module.admiral .admiral_comm {
 	width:130px;
@@ -381,6 +398,7 @@ html,body {
 	line-height:20px;
 	float:left;
 	color:#ccc;
+	white-space:nowrap;
 }
 .module.activity .consumable_ltext.regenCap {
 	color:#EAF918;
@@ -404,8 +422,14 @@ html,body {
 .module.activity .consumables .consumable.page2 {
 	display:none;
 }
-.module.activity .consumables .consumable.page3 {
+.module.activity .consumables .consumable.page3,
+.module.activity .consumables .consumable.page4 {
 	display:none;
+	width:60px;
+}
+.module.activity .consumables .consumable.page3 .consumable_ltext,
+.module.activity .consumables .consumable.page4 .consumable_ltext {
+	width:40px;
 }
 
 /* Expedition */
@@ -882,6 +906,12 @@ ABYSS FLEET
 	height:24px;
 	margin:3px;
 }
+.module.activity .battle_flag.battle_fish img.rounded {
+	width:25px;
+	height:25px;
+	margin-top:2px;
+	border-radius:50%;
+}
 .module.activity .battle_flag .support_exped {
 	width:12px;
 	height:12px;
@@ -1207,15 +1237,15 @@ ABYSS FLEET
 	width:20px;
 	height:20px;
 	float:left;
-	margin:0px 5px 0px 0px;
+	margin:0px 3px 0px 0px;
 	background:#fff;
 	border-radius:10px;
-
+	text-align:center;
 }
 .module.activity .activity_crafting .equipStatIcon img {
-	width:16px;
+	max-width:18px;
 	height:16px;
-	margin:2px;
+	margin:2px 1px;
 	vertical-align:top;
 }
 .module.activity .activity_crafting .equipStatText {
@@ -1609,15 +1639,20 @@ ABYSS FLEET
 }
 
 .module.activity .activity_expeditionPlanner .expPlanner_timer {
-	margin-bottom:4px;
+	height: 20px;
+	margin-bottom: 4px;
 }
 
 .module.activity .activity_expeditionPlanner .expPlanner_timer_description {
 	float: left;
+	text-align: left;
+	width: 110px;
 	margin-right: 3px;
 }
 .module.activity .activity_expeditionPlanner .estimated_time {
+	float: right;
 	text-align: right;
+	width: 67px;
 }
 
 .module.activity .activity_expeditionPlanner .expPlanner_resos_title {
@@ -1804,6 +1839,7 @@ ABYSS FLEET
 	vertical-align:text-top;
 }
 .module.activity .activity_gunfit .fit_value {
+	width:176px;
 	height:50px;
 	line-height:15px;
 	font-size:11px;
@@ -1814,6 +1850,8 @@ ABYSS FLEET
 	background:#aaa;
 }
 .module.activity .activity_gunfit .fit_value .fit_current {
+	float:left;
+	width:100%;
 	height:30px;
 	margin:0px 0px 1px 0px;
 	padding:0px 5px 0px 5px;
@@ -1875,6 +1913,8 @@ ABYSS FLEET
 	filter:drop-shadow(0px 0px 1px #eee);
 }
 .module.activity .activity_gunfit .fit_value .fit_total {
+	float:left;
+	width:100%;
 	height:16px;
 	padding:0px 5px 0px 5px;
 	color:#eee;
@@ -1884,7 +1924,18 @@ ABYSS FLEET
 	text-overflow:ellipsis;
 }
 
+.module.activity .activity_gunfit .scrollable {
+	width:176px;
+	max-height:134px;
+	overflow-x:hidden;
+	overflow-y:auto;
+}
+.module.activity .activity_gunfit .scrollable::-webkit-scrollbar {
+	width: 3px;
+}
+
 .module.activity .activity_gunfit .oasw {
+	width:176px;
 	height:36px;
 	font-size:11px;
 	line-height:16px;
@@ -1910,7 +1961,7 @@ ABYSS FLEET
 
 .module.activity .activity_gunfit .aaci {
 	width:176px;
-	height:82px;
+	height:auto;
 	margin:0px 0px 2px 0px;
 	overflow:hidden;
 	overflow-y:auto;
@@ -1992,6 +2043,56 @@ ABYSS FLEET
 .module.activity .activity_gunfit .aaci .aaciPattern.triggerable {
 	background:#777;
 }
+
+.module.activity .activity_gunfit .landing {
+	width:176px;
+	height:auto;
+	margin:0px 0px 2px 0px;
+	overflow:hidden;
+	overflow-y:auto;
+}
+.module.activity .activity_gunfit .landing .landingInfo {
+	width:155px;
+	height:20px;
+	line-height:20px;
+	margin:0px 0px 1px 6px;
+	border-radius:6px;
+	font-size:12px;
+	color:#ccc;
+	background:rgba(255,54,54,0.2);
+}
+.module.activity .activity_gunfit .landing .shipIcon {
+	width:18px;
+	height:20px;
+	margin:0px 5px 0px 5px;
+	float:left;
+}
+.module.activity .activity_gunfit .landing .shipIcon img {
+	width:18px;
+	height:18px;
+	margin-top:1px;
+	vertical-align:top;
+}
+.module.activity .activity_gunfit .landing .power {
+	width:50px;
+	height:20px;
+	margin:0px 2px 0px 0px;
+	float:left;
+	white-space:nowrap;
+	overflow:visible;
+}
+.module.activity .activity_gunfit .landing .power img {
+	width:15px;
+	height:15px;
+	vertical-align:text-top;
+}
+.module.activity .activity_gunfit .landing .power .value {
+	margin-left:2px;
+}
+.module.activity .activity_gunfit .landing .modifiers {
+	width:15px;
+}
+
 /*------- ACTIVITY: PvP Info -------*/
 .module.activity .activity_pvp {
 	padding: 5px 10px;
@@ -2222,7 +2323,7 @@ ABYSS FLEET
 	font-size: 11px;
 	border: 1px solid #faa;
 	border-radius: 17px 5px 5px 17px;
-	background-color: #555;
+	background-color: rgba(85,85,85,0.7);
 }
 .module.activity .activity_pvp .pvpFleetShip .pvp_fleet_ship_icon {
 	width: 28px;
@@ -2312,6 +2413,254 @@ ABYSS FLEET
 	background-color: #fff;
 	border-radius: 10px;
 	vertical-align: inherit;
+}
+/*------- ACTIVITY: Remodel Info -------*/
+.module.activity .activity_remodel {
+	padding: 5px 10px;
+	color: #ddd;
+	font-size: 12px;
+}
+.module.activity .activity_remodel .remodel_header {
+	width: 170px;
+	height: 34px;
+	margin: 0px 0px 1px 0px;
+}
+.module.activity .activity_remodel .remodel_header .recipe_title,
+.module.activity .activity_remodel .remodel_header .result_title {
+	float: left;
+	width: 138px;
+	color: #ffcc00;
+	font-weight: bold;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.module.activity .activity_remodel .remodel_header .recipe_title span {
+	color: #3ec0bf;
+}
+.module.activity .activity_remodel .remodel_header .result_title.failure {
+	color: #f00;
+}
+.module.activity .activity_remodel .remodel_header .assistant_ship {
+	float: right;
+	width: 30px;
+	height: 30px;
+	margin-top: 2px;
+	border: 1px solid #000;
+	border-radius: 15px;
+	overflow: hidden;
+}
+.module.activity .activity_remodel .remodel_header .assistant_ship img {
+	width: 30px;
+	height: 30px;
+	margin: -1px 0px 0px -1px;
+}
+.module.activity .activity_remodel .remodel_scrollable {
+	width: 176px;
+	max-height: 106px;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+.module.activity .activity_remodel .remodel_slotlist,
+.module.activity .activity_remodel .remodel_to_improve,
+.module.activity .activity_remodel .remodel_consumptions,
+.module.activity .activity_remodel .remodel_upgrade_to,
+.module.activity .activity_remodel .remodel_improved {
+	width: 170px;
+	height: auto;
+}
+.module.activity .activity_remodel .remodelSlotItem {
+	width: 170px;
+	height: 56px;
+	background: rgba(255, 255, 255, 0.2);
+	border-radius: 5px;
+	margin: 0px 0px 2px 0px;
+	padding: 1px 1px 1px 1px;
+	overflow: hidden;
+}
+.module.activity .activity_remodel .remodelSlotItem.withStar {
+	height: 69px;
+}
+.module.activity .activity_remodel .remodelSlotItem.noReqs {
+	height: 22px;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_itemon {
+	float: left;
+	width: 40px;
+	height: 56px;
+}
+.module.activity .activity_remodel .remodelSlotItem.noReqs .remodel_slot_itemon {
+	display: none;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_itemon img {
+	width: 40px;
+	height: 56px;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_icon {
+	float: left;
+	width: 20px;
+	height: 20px;
+	margin-right: 2px;
+	background: rgba(0, 0, 0, 0.6);
+	border-radius: 10px;
+	overflow: hidden;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_icon img {
+	width: 20px;
+	height: 20px;
+	vertical-align: top;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_name {
+	float: left;
+	width: 106px;
+	height: 20px;
+	color: #eee;
+	line-height: 20px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.module.activity .activity_remodel .remodelSlotItem.noReqs .remodel_slot_name {
+	width: 144px;
+}
+.module.activity .activity_remodel .remodelSlotItem.withStar .remodel_slot_name {
+	width: 106px;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_star {
+	float: left;
+	font-size: 11px;
+	font-weight: bold;
+	min-width: 38px;
+	height: 13px;
+	line-height: 13px;
+	margin: 0px 0px 0px 2px;
+	color: #45a9a5;
+	display: none;
+}
+.module.activity .activity_remodel .remodelSlotItem.noReqs .remodel_slot_star {
+	margin-top: 3px;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_star img {
+	width: 12px;
+	height: 12px;
+	margin-top: -2px;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_reqs {
+	float: left;
+	width: 127px;
+	height: 32px;
+	color: #222;
+	font-size: 11px;
+	margin-top: 2px;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_reqs::-webkit-scrollbar {
+	width: 3px;
+}
+.module.activity .activity_remodel .remodelSlotItem.noReqs .remodel_slot_reqs {
+	display: none;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_reqs div {
+	float: left;
+	height: 15px;
+	line-height: 15px;
+	margin-left: 2px;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_reqs img {
+	width: 12px;
+	height: 12px;
+	vertical-align: text-bottom;
+	margin-right: 1px;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_reqs span.req {
+	color: #ddd;
+}
+.module.activity .activity_remodel .remodelSlotItem .remodel_slot_reqs span.certain {
+	color: #8ae9e4;
+	margin-left: 1px;
+	display: none;
+}
+.module.activity .activity_remodel .remodel_consumptions {
+	font-size: 11px;
+}
+.module.activity .activity_remodel .remodel_consumptions .consume_title {
+}
+.module.activity .activity_remodel .remodel_consume_item {
+	width: 170px;
+	height: 14px;
+	margin-bottom: 1px;
+}
+.module.activity .activity_remodel .remodel_consume_item .remodel_slot_icon {
+	float: left;
+	width: 14px;
+	height: 14px;
+	margin-right: 4px;
+	background: rgba(0, 0, 0, 0.6);
+	border-radius: 7px;
+	overflow: hidden;
+}
+.module.activity .activity_remodel .remodel_consume_item .remodel_slot_icon img {
+	width: 14px;
+	height: 14px;
+	vertical-align: top;
+}
+.module.activity .activity_remodel .remodel_consume_item .remodel_slot_name {
+	float: left;
+	width: 130px;
+	height: 14px;
+	color: #45a9a5;
+	line-height: 14px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.module.activity .activity_remodel .remodel_consume_item .remodel_consume_amount {
+	float: left;
+	color: #45a9a5;
+	font-weight: bold;
+	line-height: 14px;
+}
+.module.activity .activity_remodel .remodel_consumptions .owned_item {
+	float: left;
+	margin-right: 5px;
+	display: none;
+}
+.module.activity .activity_remodel .remodel_consumptions .owned_item img {
+	width: 12px;
+	height: 12px;
+	vertical-align: text-top;
+}
+.module.activity .activity_remodel .remodel_consumptions .owned_star0_item .star0 {
+	color: #45a9a5;
+	font-weight: bold;
+}
+.module.activity .activity_remodel .remodel_consumptions .owned_item .value {
+	color: #45a9a5;
+	margin-left: 2px;
+}
+.module.activity .activity_remodel .remodel_consumptions .owned_item .value.red {
+	color: #f00;
+}
+.module.activity .activity_remodel .remodel_upgrade_title {
+	color: #ffcc00;
+	font-size: 11px;
+	margin-top: 1px;
+}
+.module.activity .activity_remodel .remodel_footer > div {
+	float: right;
+	height: 17px;
+	line-height: 17px;
+	margin-left: 10px;
+}
+.module.activity .activity_remodel .remodel_footer .owned_devmats {
+}
+.module.activity .activity_remodel .remodel_footer .owned_screws {
+}
+.module.activity .activity_remodel .remodel_footer img {
+	width: 14px;
+	height: 14px;
+	vertical-align: text-bottom;
+	margin-right: 2px;
 }
 
 /*------- QUESTS -------*/
@@ -2427,7 +2776,7 @@ ABYSS FLEET
 	border-radius:8px;
 	background:#333333;
 	text-align:center;
-	margin:0px 0px 3px 0px;
+	margin:0px 5px 3px 0px;
 	font-size:16px;
 	font-weight:bold;
 	text-align:center;
@@ -2446,15 +2795,47 @@ ABYSS FLEET
 .module.controls .fleet_lbas.needsSupply img {
 	margin-top:-2px;
 }
+.module.controls .scrollable {
+	height:38px;
+	margin:0px 5px 3px 0px;
+	font-size:0px;
+	word-spacing:0px;
+	letter-spacing:0px;
+	white-space:nowrap;
+	overflow-x:hidden;
+	overflow-y:hidden;
+}
+.module.controls .scroll_btn {
+	width:0px;
+	height:0px;
+	margin:2px 5px 3px 0px;
+}
+.module.controls .scroll_left {
+	border-top:13px solid transparent;
+	border-bottom:13px solid transparent;
+	border-right:15px solid #999999;
+}
+.module.controls .scroll_right {
+	border-top:13px solid transparent;
+	border-bottom:13px solid transparent;
+	border-left:15px solid #999999;
+}
+.module.controls .scroll_left.disabled {
+	border-right:15px solid #333333;
+}
+.module.controls .scroll_right.disabled {
+	border-left:15px solid #333333;
+}
 .module.controls .control_btn {
 	width:40px;
 	border-radius:15px;
 	background:#999999;
-	text-align:center;
 	margin:0px 5px 0px 0px;
 	text-align:center;
 	overflow:hidden;
 	padding:3px;
+	display:inline-block;
+	float:initial;
 }
 .module.controls .control_btn img {
 	width:34px;
@@ -2864,6 +3245,12 @@ ABYSS FLEET
 	height:20px;
 	float:left;
 }
+.module.fleet .lship .ship_gear.ship_gear_5 {
+	display:none;
+	position:relative;
+	left:83px;
+	top:-40px;
+}
 .module.fleet .lship .ship_gear_star {
 	width:12px;
 	position:absolute;
@@ -2975,6 +3362,22 @@ ABYSS FLEET
 }
 .module.fleet .lship .ship_ammo .ship_supply_bar {
 	background:#999900;
+}
+.module.fleet .lship .ship_supplies.slot5 {
+	height:20px;
+	margin-top:20px;
+}
+.module.fleet .lship .slot5 .ship_supply {
+	height:10px;
+	margin:0px 0px;
+}
+.module.fleet .lship .slot5 .ship_supply_text {
+	height:8px;
+	line-height:8px;
+	font-size:8px;
+}
+.module.fleet .lship .slot5 .ship_supply_bar {
+	height:8px;
 }
 
 .module.fleet .lship .ship_exp_box {
@@ -3220,14 +3623,12 @@ ABYSS FLEET
 	line-height:20px;
 	float:left;
 	margin:0px 3px 3px 0px;
-	/*background:#fcc;*/
 }
 .module.status .status_icon {
 	width:20px;
 	height:20px;
 	float:left;
 	margin:0px 4px 0px 1px;
-	/*background:#ccf;*/
 }
 .module.status .status_icon.enclose {
 	background:#fff;
@@ -3257,6 +3658,9 @@ ABYSS FLEET
 }
 .module.status .status_text.good {
 	color:#afa;
+}
+.module.status .status_text.slotsWarn {
+	color:#ffa;
 }
 
 .module.status .status_support {
@@ -3493,7 +3897,6 @@ ABYSS FLEET
 .wrapper.h {
 	width:550px;
 	height:450px;
-	/*background:url(outline.png);*/
 }
 .h .module.admiral {
 	left:5px; top:5px;
@@ -3521,14 +3924,19 @@ ABYSS FLEET
 	left:205px; top:5px;
 }
 .h .module.controls .control_btn {
-	float:right;
+/*	float:right;*/
 	width:30px;
 	line-height:29px;
-	padding:0px;
+	padding:1px;
 }
 .h .module.controls .control_btn img {
 	width:26px;
 	height:20px;
+}
+.h .module.controls .control_btn.btn_reload_quotes img,
+.h .module.controls .control_btn.btn_reload_quests img {
+	width:22px;
+	height:22px;
 }
 .h .module.summary {
 	width:343px;
@@ -3553,6 +3961,9 @@ ABYSS FLEET
 .h .module.controls .fleet_rengo {
 	margin:0px 2px 3px 0px;
 }
+.h .module.controls .scrollable {
+	width:100px;
+}
 .h .module.status {
 	width:340px;
 	height:45px;
@@ -3564,7 +3975,6 @@ ABYSS FLEET
 .wrapper.v {
 	width:800px;
 	height:325px;
-	/*background:url(vertical.png);*/
 }
 .v .module.admiral {
 	left:5px; top:5px;
@@ -3579,6 +3989,9 @@ ABYSS FLEET
 	width:240px;
 	height:66px;
 	left:555px; top:5px;
+}
+.v .module.controls .scrollable {
+	width:175px;
 }
 .v .module.summary {
 	width:240px;
@@ -3773,9 +4186,9 @@ ABYSS FLEET
 	border-bottom-color:#fcfcfc;
 }
 .ui-tooltip-content .ship_face_tooltip .stat_icon img {
-	width:15px;
-	height:15px;
-	margin-top:-2px;
+	max-width:19px;
+	height:16px;
+	vertical-align:bottom;
 }
 .ui-tooltip-content .ship_face_tooltip .stat_name {
 	color:#b49a47;

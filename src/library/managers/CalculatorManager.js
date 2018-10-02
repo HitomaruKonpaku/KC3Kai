@@ -9,10 +9,10 @@
  * and done within one or few functions.
  *
  * Basic calculation logics related to specific class are located in their corresponding Object definition,
- * such as Fleet, Ships, Gear, LandBase.
+ * such as Fleet, Ship, Gear, LandBase.
  *
  * Complex logic functions will be broken into individual modules or objects:
- * @see BattlePrediction - analyses battle API data and and simulates the battle results in advance;
+ * @see BattlePrediction - analyses battle API data and simulates the battle results in advance;
  * @see AntiAir - estimates Anti-Air power and AACI types based on Ship's equipment, Fleet compos, etc;
  * @see WhoCallsTheFleetDB - estimates more stats of Ship or Gear based on a well updated static database;
  * @see AkashiRepair - simulates Akashi Anchorage Repair timer, estimates amount of HP recovering;
@@ -111,7 +111,7 @@
                     .format(1 + idx);
                 planeListHtml += $("<img />").attr("src", KC3Meta.shipIcon(p.shipMasterId))
                     .css(iconStyles).prop("outerHTML");
-                planeListHtml += $("<img />").attr("src", "/assets/img/items/" + p.icon + ".png")
+                planeListHtml += $("<img />").attr("src", KC3Meta.itemIcon(p.icon))
                     .css(iconStyles).prop("outerHTML");
                 planeListHtml += '<span style="color:#45a9a5">\u2605{0}</span>\u2003'
                     .format(p.stars);
@@ -372,6 +372,19 @@
     };
 
     /**
+     * @param {number} basicPower - basic fighter power calculated by #enemyFighterPower
+     * @return {Array} fighter power intervals array including [basic power, AD power, AP power, AS power, AS+ power].
+     */
+    const fighterPowerIntervals = (basicPower = false) => {
+        return [basicPower,
+            Math.round(basicPower / 3),
+            Math.round(2 * basicPower / 3),
+            Math.round(3 * basicPower / 2),
+            3 * basicPower
+        ];
+    };
+
+    /**
      * Get leveling goal data for specific ship, which defined at Strategy Room Leveling page.
      *
      * @param {Object} shipObj - KC3Ship instance
@@ -407,14 +420,67 @@
             goalResult.isFlagship = shipGoal[5] === 1;
             goalResult.flagshipModifier = goalResult.isFlagship ? 1.5 : 1;
             goalResult.isMvp = shipGoal[6] === 1;
+            goalResult.baseExp = shipGoal[7] || 0;
             goalResult.mvpModifier = goalResult.isMvp ? 2 : 1;
-            goalResult.expPerBattles = goalResult.baseExpPerBattles
+            goalResult.expPerBattles = (shipGoal[7] || goalResult.baseExpPerBattles)
                 * goalResult.rankModifier
                 * goalResult.flagshipModifier
                 * goalResult.mvpModifier;
             goalResult.battlesLeft = Math.ceil(goalResult.expLeft / goalResult.expPerBattles);
         }
         return goalResult;
+    };
+
+    /**
+     * Calculates the timestamp of next in-game Quest/PvP/RankPtCutOff reset.
+     * @param {number} now - timestamp of 'now', current timestamp by default.
+     * @return {Object} an Object contains timestamp of {quest, pvp, rank}.
+     */
+    const nextResetsTimestamp = (now = Date.now()) => {
+        // Next Quest reset time (UTC 2000 / JST 0500)
+        const utc8pm = new Date(now),
+            utc6am = new Date(now), utc6pm = new Date(now);
+        utc8pm.setUTCHours(20, 0, 0, 0);
+        if(utc8pm.getTime() < now) utc8pm.shiftDate(1);
+        // Next PvP reset time (UTC 1800,0600 / JST 0300,1500)
+        utc6am.setUTCHours(6, 0, 0, 0);
+        utc6pm.setUTCHours(18, 0, 0, 0);
+        if(utc6am.getTime() < now) utc6am.shiftDate(1);
+        if(utc6pm.getTime() < now) utc6pm.shiftDate(1);
+        const nextPvPstamp = Math.min(utc6am.getTime(), utc6pm.getTime());
+        // Next Rank points cut-off time (-1 hour from PvP reset time)
+        //   extra cut-off monthly on JST 2200, the last day of every month,
+        //   but points from quest Z cannon not counted after JST 1400.
+        let nextPtCutoff = new Date(nextPvPstamp);
+        nextPtCutoff.shiftHour(-1);
+        if(nextPtCutoff.getTime() < now) nextPtCutoff.shiftHour(13);
+        if(nextPtCutoff.getMonth() > new Date(now).getMonth()
+            || nextPtCutoff.getFullYear() > new Date(now).getFullYear()) {
+            nextPtCutoff.setUTCHours(13, 0, 0, 0);
+            if(nextPtCutoff.getTime() < now) {
+                nextPtCutoff = new Date(utc6pm.getTime());
+                nextPtCutoff.shiftHour(-1);
+            }
+        }
+        return {
+            quest: utc8pm.getTime(),
+            pvp: nextPvPstamp,
+            rank: nextPtCutoff.getTime(),
+        };
+    };
+
+    /**
+     * Calculates remaining time until next in-game Quest/PvP/RankPtCutOff reset.
+     * @param {number} now - timestamp of 'now', current timestamp by default.
+     * @return {Object} an Object contains the HH:MM:SS strings of {quest, pvp, rank}.
+     */
+    const remainingTimeUntilNextResets = (now = Date.now()) => {
+        const nextResets = nextResetsTimestamp(now);
+        return {
+            quest: String(Math.floor((nextResets.quest - now) / 1000)).toHHMMSS(),
+            pvp: String(Math.floor((nextResets.pvp - now) / 1000)).toHHMMSS(),
+            rank: String(Math.floor((nextResets.rank - now) / 1000)).toHHMMSS(),
+        };
     };
 
     const publicApi = {
@@ -432,9 +498,12 @@
         getLandBasesWorstCond,
         isLandBasesSupplied,
         
-        getShipLevelingGoal,
+        enemyFighterPower,
+        fighterPowerIntervals,
         
-        enemyFighterPower
+        getShipLevelingGoal,
+        nextResetsTimestamp,
+        remainingTimeUntilNextResets,
     });
 
 })();

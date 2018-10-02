@@ -403,6 +403,9 @@ Uses Dexie.js third-party plugin on the assets directory
 					if(!data.name && !!oldData.name){
 						data.name = oldData.name;
 					}
+					if(!data.exp && !!oldData.exp){
+						data.exp = oldData.exp;
+					}
 				}
 				self.con.encounters.put(data).then(callback);
 			});
@@ -434,48 +437,60 @@ Uses Dexie.js third-party plugin on the assets directory
 			return this.con.logs.add(data);
 		},
 		
-		/* [GET] Retrieve logs from Local DB
-		--------------------------------------------*/
-		get_build :function(pageNumber, callback){
-			var itemsPerPage = 30;
-			this.con.build
-				.where("hq").equals(this.index)
-				.reverse()
-				.offset( (pageNumber-1)*itemsPerPage ).limit( itemsPerPage )
+		get_build :function(filter, pageNumber, itemsPerPage, callback){
+			return this.con.build
+				.filter(r => {
+					if(r.hq !== this.index) return false;
+					return filter(r);
+				}).reverse()
+				.offset((pageNumber - 1) * itemsPerPage).limit(itemsPerPage)
 				.toArray(callback);
 		},
 		
-		count_build: function(callback){
-			this.con.build
-				.where("hq").equals(this.index)
-				.count(callback);
+		count_build :function(filter, callback){
+			return this.con.build
+				.filter(r => {
+					if(r.hq !== this.index) return false;
+					return filter(r);
+				}).count(callback);
 		},
 		
-		get_lscs :function(pageNumber, callback){
-			var itemsPerPage = 30;
-			this.con.lsc
-				.where("hq").equals(this.index)
-				.reverse()
-				.offset( (pageNumber-1)*itemsPerPage ).limit( itemsPerPage )
+		uniquekeys_build :function(indexedKey, callback){
+			return this.con.build.orderBy(indexedKey).uniqueKeys(callback);
+		},
+		
+		get_lscs :function(filter, pageNumber, itemsPerPage, callback){
+			return this.con.lsc
+				.filter(r => {
+					if(r.hq !== this.index) return false;
+					return filter(r);
+				}).reverse()
+				.offset((pageNumber - 1) * itemsPerPage).limit(itemsPerPage)
 				.toArray(callback);
 		},
 		
-		count_lscs: function(callback){
-			this.con.lsc
-				.where("hq").equals(this.index)
-				.count(callback);
+		count_lscs :function(filter, callback){
+			return this.con.lsc
+				.filter(r => {
+					if(r.hq !== this.index) return false;
+					return filter(r);
+				}).count(callback);
 		},
 		
-		get_expeds :function(pageNumber, expeds, fleets, sparkled, callback){
-			// console.debug("expeds", expeds);
-			var itemsPerPage = 20;
+		uniquekeys_lscs :function(indexedKey, callback){
+			return this.con.lsc.orderBy(indexedKey).uniqueKeys(callback);
+		},
+		
+		get_expeds :function(pageNumber, itemsPerPage, expeds, fleets, sparkled, callback){
 			this.con.expedition
 				.where("hq").equals(this.index)
 				.and(function(exped){ return expeds.indexOf(exped.mission) > -1; })
 				.and(function(exped){ return fleets.indexOf(exped.fleetN) > -1; })
-				.and(function(exped){ return sparkled(exped.fleet.reduce((sp, sh) => sh.morale > 49 ? sp + 1 : sp, 0)); })
-				.reverse()
-				.offset( (pageNumber-1)*itemsPerPage ).limit( itemsPerPage )
+				.and(function(exped){
+					const fleetArr = Array.isArray(exped.fleet) ? exped.fleet : [];
+					return sparkled(fleetArr.reduce((sp, sh) => sh.morale > 49 ? sp + 1 : sp, 0));
+				}).reverse()
+				.offset((pageNumber - 1) * itemsPerPage).limit(itemsPerPage)
 				.toArray(callback);
 		},
 		
@@ -484,10 +499,12 @@ Uses Dexie.js third-party plugin on the assets directory
 				.where("hq").equals(this.index)
 				.and(function(exped){ return expeds.indexOf(exped.mission) > -1; })
 				.and(function(exped){ return fleets.indexOf(exped.fleetN) > -1; })
-				.and(function(exped){ return sparkled(exped.fleet.reduce((sp, sh) => sh.morale > 49 ? sp + 1 : sp, 0)); })
-				.toArray(function(arr) {
-					let gs = arr.reduce((sum, curr) => curr.data.api_clear_result == 2 ? sum + 1 : sum, 0);
-					let ns = arr.reduce((sum, curr) => curr.data.api_clear_result  > 0 ? sum + 1 : sum, 0);
+				.and(function(exped){
+					const fleetArr = Array.isArray(exped.fleet) ? exped.fleet : [];
+					return sparkled(fleetArr.reduce((sp, sh) => sh.morale > 49 ? sp + 1 : sp, 0));
+				}).toArray(function(arr) {
+					const gs = arr.reduce((sum, curr) => curr.data.api_clear_result == 2 ? sum + 1 : sum, 0);
+					const ns = arr.reduce((sum, curr) => curr.data.api_clear_result  > 0 ? sum + 1 : sum, 0);
 					callback(arr.length, gs, ns);
 				});
 		},
@@ -756,7 +773,7 @@ Uses Dexie.js third-party plugin on the assets directory
 				this.con.enemy
 					.where("id").equals(shipId)
 					.toArray(function(matchList){
-						console.debug("matchList", matchList);
+						//console.debug("matchList", matchList);
 						if(matchList.length > 0){
 							callback(matchList[0]);
 						}else{
@@ -802,19 +819,27 @@ Uses Dexie.js third-party plugin on the assets directory
 				});
 		},
 		
-		get_devmt :function(pageNumber, callback){
-			var itemsPerPage = 25;
-			this.con.develop
-				.where("hq").equals(this.index)
-				.reverse()
-				.offset( (pageNumber-1)*itemsPerPage ).limit( itemsPerPage )
+		get_devmt :function(filter, pageNumber, itemsPerPage, callback){
+			return this.con.develop
+				.filter(r => {
+					if(r.hq !== this.index) return false;
+					return filter(r);
+				}).reverse()
+				.offset((pageNumber - 1) * itemsPerPage).limit(itemsPerPage)
 				.toArray(callback);
 		},
 		
-		count_devmt: function(callback){
-			this.con.develop
-				.where("hq").equals(this.index)
-				.count(callback);
+		count_devmt :function(filter, callback){
+			return this.con.develop
+				.filter(r => {
+					if(r.hq !== this.index) return false;
+					return filter(r);
+				}).count(callback);
+		},
+		
+		uniquekeys_devmt :function(indexedKey, callback){
+			// troublesome to extract collection by hq first, might be slower
+			return this.con.develop.orderBy(indexedKey).uniqueKeys(callback);
 		},
 		
 		count_sortie_battle: function(callback, startSecs, endSecs, world, map){

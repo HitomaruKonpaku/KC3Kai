@@ -2,7 +2,7 @@
  * OpenDBSubmission.js
  *
  * Submits equip dev, ship constructions, ship drops and equipment improvements to OpenDB:
- * http://swaytwig.com/opendb/
+ * http://opendb.swaytwig.com/
  *
  * @see PoiDBSubmission.js - copied and edited from
  */
@@ -231,6 +231,7 @@
 			var KcsApiIndex = url.indexOf("/kcsapi/");
 			return url.substring( KcsApiIndex+8 );
 		},
+		// SPI: process entry
 		// get data handler based on URL given
 		// `null` is returned if no handler is found
 		processData: function( requestObj ) {
@@ -263,6 +264,7 @@
 				});
 			}
 		},
+		// SPI: clean all previous states up
 		cleanup: function() {
 			if (this.state !== null) {
 				console.log("Aborting previous data report, interal state was:", this.state);
@@ -277,13 +279,13 @@
 			if(true) return;
 			*/
 			var post = $.ajax({
-				url: "http://swaytwig.com/opendb/report/" + endpoint,
+				url: "http://opendb.swaytwig.com/report/" + endpoint,
 				method: "POST",
 				data: payload,
-			}).done(function( msg ) {
-				console.log("OpenDB Submission done:", msg);
+			}).done( function() {
+				console.log(`OpenDB Submission to /${endpoint} done.`);
 			}).fail( function(jqXHR, textStatus, errorThrown) {
-				console.warn( "OpenDB Submission failed:", textStatus, errorThrown);
+				console.warn(`OpenDB Submission to /${endpoint} ${textStatus}`, errorThrown);
 			});
 		}
 	};

@@ -122,11 +122,27 @@
 .tab_fleet .detail_value:hover {
 	overflow:visible;
 }
+.tab_fleet .ss_button {
+	float:right;
+	position:relative;
+	width:30px;
+	height:30px;
+	margin-top:-19px;
+	margin-right:2px;
+	opacity:0.05;
+}
+.tab_fleet .ss_button:hover {
+	opacity:1.0;
+}
+.tab_fleet .ss_button img {
+	width:30px;
+	height:30px;
+}
 
 /* Ships */
 .tab_fleet .fleet_ships {
 	width:672px;
-	height:97px;
+	height:98px;
 	margin:0px 4px;
 }
 .tab_fleet .fleet_ships.horizontal {
@@ -142,7 +158,8 @@
 }
 .tab_fleet .fleet_ship.horizontal {
 	width:110px;
-	height:172px;
+	height:auto;
+	min-height:172px;
 }
 .tab_fleet .fleet_ship .ship_type {
 	height:21px;
@@ -187,7 +204,7 @@
 }
 .tab_fleet .fleet_ship .ship_gear {
 	width:220px;
-	height:88px;
+	height:auto;
 	float:left;
 	line-height:17px;
 	margin:0px 0px 1px 0px;

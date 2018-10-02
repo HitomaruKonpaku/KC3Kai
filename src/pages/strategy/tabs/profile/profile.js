@@ -40,7 +40,7 @@
 		Places data onto the interface
 		---------------------------------*/
 		execute :function(){
-			var self = this;
+			const self = this;
 			
 			// First time hints can be dismissed
 			if(!ConfigManager.dismissed_hints.homepage_hints){
@@ -58,8 +58,8 @@
 			$(".hq_name .hq_content").text(PlayerManager.hq.name);
 			$(".hq_desc .hq_content").text(PlayerManager.hq.desc);
 			
-			var MyServer = (new KC3Server()).setNum( PlayerManager.hq.server );
-			$(".hq_server .hq_content").text( MyServer.name );
+			const myServer = (new KC3Server()).setNum( PlayerManager.hq.server );
+			$(".hq_server .hq_content").text( myServer.name );
 			
 			$(".hq_rank .hq_content").text(PlayerManager.hq.rank);
 			$(".hq_level .hq_content").text(PlayerManager.hq.level);
@@ -117,10 +117,10 @@
 			});
 			
 			// Show health metric
-			if(PlayerManager.hq.lastPortTime > this.battleCounts.lastPortTime){
-				let lastMonthSec = Math.floor(new Date().shiftDate(-30).getTime() / 1000);
-				let last2DaySec = Math.floor(new Date().shiftHour(-48).getTime() / 1000);
-				let lastDaySec = Math.floor(new Date().shiftHour(-24).getTime() / 1000);
+			if(PlayerManager.hq.lastPortTime > this.battleCounts.lastPortTime + 600){
+				const lastMonthSec = Math.floor(new Date().shiftDate(-30).getTime() / 1000);
+				const last2DaySec = Math.floor(new Date().shiftHour(-48).getTime() / 1000);
+				const lastDaySec = Math.floor(new Date().shiftHour(-24).getTime() / 1000);
 				KC3Database.count_sortie_battle(function(sc, bc){
 					self.battleCounts.lastDaySortie = sc;
 					self.battleCounts.lastDayBattle = bc;
@@ -141,28 +141,31 @@
 			}
 			
 			// Show localStorage space usage (unit is Kilo chars, not bytes)
-			let usedChars = localStorage.usedSpace();
-			let kiloChars = Math.floor(usedChars / 1024);
-			let usedPercent = Math.floor(usedChars / localStorage.quotaLength * 1000) / 10;
+			const usedChars = localStorage.usedSpace();
+			const kiloChars = Math.floor(usedChars / 1024);
+			const usedPercent = Math.floor(usedChars / localStorage.quotaLength * 1000) / 10;
 			$(".management .used").text("Used {0}K, {1}%".format(kiloChars, usedPercent));
 			
 			// Export all data
 			$(".tab_profile .export_data").on("click", function(){
-				var exportObject = {
-					config: JSON.parse(localStorage.config || "{}"),
-					fleets: JSON.parse(localStorage.fleets || "{}"),
-					gears: JSON.parse(localStorage.gears || "{}"),
-					//maps: JSON.parse(localStorage.maps || "{}"),
-					player: JSON.parse(localStorage.player || "{}"),
-					//quests: JSON.parse(localStorage.quests || "{}"),
-					ships: JSON.parse(localStorage.ships || "{}"),
-					//statistics: JSON.parse(localStorage.statistics || "{}")
-				};
-				var exportString = JSON.stringify(exportObject);
+				const keysToExport = [
+					// KC3 configurations
+					"config", "expedConfig", "expedTab",
+					"goalTemplates", "goals", "planes", "player",
+					"savedFleets", "srExpcalc", "srExpedscorer", "srShiplist", "srShowcase",
+					// history/cached in-game data
+					"fleets", "gears", "ships", "bases", "maps", "pictureBook", "quests",
+					// other keys are cache data can be auto rebuilt on game start
+				];
+				const exportObject = {};
+				keysToExport.forEach(key => {
+					exportObject[key] = JSON.parse(localStorage[key] || "{}");
+				});
+				let exportString = JSON.stringify(exportObject);
 				exportObject.hash = exportString.hashCode();
 				exportString = JSON.stringify(exportObject);
 				
-				var filename = self.makeFilename("Profile", "kc3");
+				const filename = self.makeFilename("Profile", "kc3");
 				self.saveFile(filename, exportString, "application/json");
 			});
 			
@@ -174,25 +177,25 @@
 			// On-data has been read
 			var reader = new FileReader();
 			reader.onload = function(theFile){
-				var importedData = JSON.parse(this.result);
-				var hash = importedData.hash;
+				const importedData = JSON.parse(this.result);
+				const hash = importedData.hash;
 				delete importedData.hash;
-				if( JSON.stringify(importedData).hashCode() == hash ) {
-					alert("OK");
-				} else {
+				if( JSON.stringify(importedData).hashCode() !== hash ) {
 					alert("Invalid KC3 File. Might have been edited, or from an old KC3 version.");
+					return;
 				}
-				
-				/*localStorage.config = JSON.stringify(importedData.config);
-				localStorage.fleets = JSON.stringify(importedData.fleets);
-				localStorage.gears = JSON.stringify(importedData.gears);
-				localStorage.maps = JSON.stringify(importedData.maps);
-				localStorage.player = JSON.stringify(importedData.player);
-				localStorage.quests = JSON.stringify(importedData.quests);
-				localStorage.ships = JSON.stringify(importedData.ships);
-				localStorage.statistics = JSON.stringify(importedData.statistics);
-				alert("Imported data for "+importedData.player.name+" from "+ KC3Meta.serverByNum(importedData.player.server).name+"!");
-				window.location.reload();*/
+				if(PlayerManager.hq.id && importedData.player.id !== PlayerManager.hq.id &&
+					! confirm("You are going to import a profile from different player, are you sure?")) {
+					return;
+				}
+				if( ! confirm("Are you sure to overwrite all your current profile data?")) {
+					return;
+				}
+				for(const key in importedData) {
+					localStorage[key] = JSON.stringify(importedData[key]);
+				}
+				alert(`Imported profile data for ${importedData.player.name} from KC3 File, please restart game!`);
+				window.location.reload();
 			};
 			
 			// On-selected file to import
@@ -211,16 +214,16 @@
 			// Precompiled regexp for better performance
 			const CSV_QUOTE_TEST_REGEXP = /(\s|\r|\n|\")/;
 			const CSV_DQUOTE_REGEXP = /\"/g;
-			let csvDquoteEscaped = function(field) {
+			const csvDquoteEscaped = function(field) {
 				return '"' + field.replace(CSV_DQUOTE_REGEXP, '""') + '"';
 			};
-			let csvQuoteIfNecessary = function(field) {
+			const csvQuoteIfNecessary = function(field) {
 				return CSV_QUOTE_TEST_REGEXP.test(field) ? csvDquoteEscaped(field) : field;
 			};
 			// Export CSV: Sortie
 			/*$(".tab_profile .export_csv_sortie").on("click", function(event){
 				// CSV Headers
-				var exportData = [
+				let exportData = [
 					"Secretary", "Fuel", "Ammo", "Steel", "Bauxite", "Result", "Date"
 				].join(",")+CSV_LINE_BREAKS;
 				
@@ -239,20 +242,20 @@
 							].join(",")+CSV_LINE_BREAKS;
 						});
 						
-						var filename = self.makeFilename("LSC", ".csv");
+						const filename = self.makeFilename("LSC", ".csv");
 						self.saveFile(filename, exportData, "text/csv");
 					});
 			});*/
 			
 			const exportExpedCsv = (forAsw) => {
 				// CSV Headers
-				var exportData = [
+				let exportData = [
 					"Expedition", "HQ Exp",
 					"Fuel", "Ammo", "Steel", "Bauxite",
 					"Reward 1", "Reward 2", "Result", "Date", "Fleet#",
 					"Ship #1", "Ship #2", "Ship #3",
 					"Ship #4", "Ship #5", "Ship #6",
-				].concat(forAsw ? ["Total AA", "Total LoS", "Total ASW"] : [])
+				].concat(forAsw ? ["Total FP", "Total AA", "Total LoS", "Total ASW"] : [])
 				.join(",") + CSV_LINE_BREAKS;
 				const buildRewardItemText = (data, index) => {
 					const flag = data.api_useitem_flag[index - 1],
@@ -271,6 +274,8 @@
 				};
 				const sumShipStats = (shipInfo) => {
 					const stats = {
+						fp: 0,
+						fpEquip: 0,
 						aa: 0,
 						aaEquip: 0,
 						los: 0,
@@ -279,10 +284,12 @@
 						aswEquip: 0
 					};
 					const shipMst = KC3Master.ship(shipInfo.mst_id);
+					stats.fpEquip = sumEquipStats(shipInfo.equip, "houg");
 					stats.aaEquip = sumEquipStats(shipInfo.equip, "tyku");
 					stats.losEquip = sumEquipStats(shipInfo.equip, "saku");
 					stats.aswEquip = sumEquipStats(shipInfo.equip, "tais");
-					stats.aa = shipMst.api_tyku[0] + shipInfo.kyouka[2];
+					stats.aa = shipMst.api_houg[0] + shipInfo.kyouka[0];
+					stats.fp = shipMst.api_tyku[0] + shipInfo.kyouka[2];
 					if(shipInfo.stats){
 						stats.los = shipInfo.stats.ls || 0;
 						stats.asw = shipInfo.stats.as || 0;
@@ -299,13 +306,15 @@
 				db.reverse().toArray(function(result){
 					result.forEach(function(expedInfo){
 						const fleetStats = {
+							fp: 0,
 							aa: 0,
 							los: 0,
 							asw: 0,
 						};
-						const shipsInfo = expedInfo.fleet.map(ship => {
+						const shipsInfo = !Array.isArray(expedInfo.fleet) ? [] : expedInfo.fleet.map(ship => {
 							if(ship.mst_id > 0){
 								const stats = sumShipStats(ship);
+								fleetStats.fp += stats.fp + stats.fpEquip;
 								fleetStats.aa += stats.aa + stats.aaEquip;
 								fleetStats.los += stats.los + stats.losEquip;
 								fleetStats.asw += stats.asw + stats.aswEquip;
@@ -315,7 +324,8 @@
 									"Lv:" + ship.level,
 									"Morale:" + ship.morale,
 									"Drums:" + ship.equip.reduce((drums, id) => drums+=(id===75), 0)
-								].concat(forAsw ? ["AA+-LoS+-ASW+-",
+								].concat(forAsw ? ["FP+-AA+-LoS+-ASW+-",
+										stats.fp + stats.fpEquip, stats.fp,
 										stats.aa + stats.aaEquip, stats.aa,
 										stats.los + stats.losEquip, stats.los,
 										stats.asw + stats.aswEquip, stats.asw].join(":") : []
@@ -340,7 +350,7 @@
 							csvQuoteIfNecessary(new Date(expedInfo.time * 1000).format("mmm dd, yyyy hh:MM tt")),
 							expedInfo.fleetN
 						].concat(shipsInfo)
-						.concat(forAsw ? [fleetStats.aa, fleetStats.los, fleetStats.asw] : [])
+						.concat(forAsw ? [fleetStats.fp, fleetStats.aa, fleetStats.los, fleetStats.asw] : [])
 						.join(",") + CSV_LINE_BREAKS;
 					});
 					
@@ -362,7 +372,7 @@
 			// Export CSV: Construction
 			$(".tab_profile .export_csv_build").on("click", function(event){
 				// CSV Headers
-				var exportData = [
+				let exportData = [
 					"Secretary", "Fuel", "Ammo", "Steel", "Bauxite", "Result", "Date"
 				].join(",")+CSV_LINE_BREAKS;
 				
@@ -381,7 +391,7 @@
 							].join(",")+CSV_LINE_BREAKS;
 						});
 						
-						var filename = self.makeFilename("Constructions", "csv");
+						const filename = self.makeFilename("Constructions", "csv");
 						self.saveFile(filename, exportData, "text/csv");
 					});
 			});
@@ -389,7 +399,7 @@
 			// Export CSV: Crafting
 			$(".tab_profile .export_csv_craft").on("click", function(event){
 				// CSV Headers
-				var exportData = [
+				let exportData = [
 					"Secretary", "Fuel", "Ammo", "Steel", "Bauxite", "Result", "Date"
 				].join(",")+CSV_LINE_BREAKS;
 				
@@ -408,7 +418,7 @@
 							].join(",")+CSV_LINE_BREAKS;
 						});
 						
-						var filename = self.makeFilename("Crafting", "csv");
+						const filename = self.makeFilename("Crafting", "csv");
 						self.saveFile(filename, exportData, "text/csv");
 					});
 			});
@@ -416,7 +426,7 @@
 			// Export CSV: LSC
 			$(".tab_profile .export_csv_lsc").on("click", function(event){
 				// CSV Headers
-				var exportData = [
+				let exportData = [
 					"Secretary", "Fuel", "Ammo", "Steel", "Bauxite", "Dev Mat", "Result", "Date"
 				].join(",")+CSV_LINE_BREAKS;
 				
@@ -436,15 +446,82 @@
 							].join(",")+CSV_LINE_BREAKS;
 						});
 						
-						var filename = self.makeFilename("LSC", "csv");
+						const filename = self.makeFilename("LSC", "csv");
 						self.saveFile(filename, exportData, "text/csv");
 					});
+			});
+			
+			// Export CSV: Shipgirl Master Data (Abyssal including internal DB)
+			$(".tab_profile .export_csv_shipgirl").on("click", function(event){
+				// CSV Headers
+				let exportData = [
+					"ID", "Name", "Yomi", "Romaji", "SType", "Class", "Models", "HP", "FP", "AR", "TP", "AA", "Luck", "Speed", "Slots"
+				].join(",") + CSV_LINE_BREAKS;
+				$.each(KC3Master.all_ships(true), (i, s) => {
+					const isAb = KC3Master.isAbyssalShip(s.api_id);
+					if((!event.altKey && KC3Master.isRegularShip(s.api_id)) || (event.altKey && isAb)) {
+						exportData += [
+							s.api_id,
+							csvQuoteIfNecessary(isAb ? KC3Meta.abyssShipName(s.api_id) : KC3Meta.shipName(s.api_name)),
+							csvQuoteIfNecessary(s.api_yomi),
+							isAb ? "-" : csvQuoteIfNecessary(wanakana.toRomaji(s.api_yomi).capitalize()),
+							csvQuoteIfNecessary([s.api_stype, KC3Meta.stype(s.api_stype)].join('/')),
+							isAb ? "-" : csvQuoteIfNecessary([s.api_ctype, KC3Meta.ctype(s.api_ctype)].join('/')),
+							isAb ? "-" : RemodelDb.remodelGroup(s.api_id).join('/'),
+							isAb ? s.api_taik : s.api_taik.join('/'),
+							isAb ? s.api_houg : s.api_houg.join('/'),
+							isAb ? s.api_souk : s.api_souk.join('/'),
+							isAb ? s.api_raig : s.api_raig.join('/'),
+							isAb ? s.api_tyku : s.api_tyku.join('/'),
+							isAb ? s.api_luck : s.api_luck.join('/'),
+							s.api_soku,
+							(s.api_maxeq || []).slice(0, s.api_slot_num).join('/')
+						].join(",") + CSV_LINE_BREAKS;
+					}
+				});
+				const filename = self.makeFilename("Shipgirls", "csv");
+				self.saveFile(filename, exportData, "text/csv");
+			});
+			
+			// Export CSV: Equipment Master Data
+			$(".tab_profile .export_csv_equipment").on("click", function(event){
+				// CSV Headers
+				let exportData = [
+					"ID", "Name", "Japanese Name", "Rare", "Types", "Scrap Rsc", "Stats", "Unknown Stats"
+				].join(",") + CSV_LINE_BREAKS;
+				const statsApiMap = {
+					"api_houg": "FP", "api_raig": "TP", "api_baku": "BP", "api_souk": "AR",
+					"api_tyku": "AA", "api_houk": "EV", "api_houm": "AC", "api_tais": "AS",
+					"api_saku": "LS", "api_leng": "RN", "api_distance": "RD", "api_cost": "BC"
+				};
+				const unkStatsApiArr = [
+					"api_atap", "api_bakk", "api_luck", "api_raik",
+					"api_raim", "api_sakb", "api_soku", "api_taik"
+				];
+				$.each(KC3Master.all_slotitems(), (i, s) => {
+					if((!event.altKey && !KC3Master.isAbyssalGear(s.api_id))
+					 || (event.altKey && KC3Master.isAbyssalGear(s.api_id))) {
+						exportData += [
+							s.api_id,
+							csvQuoteIfNecessary(KC3Meta.gearName(s.api_name)),
+							csvQuoteIfNecessary(s.api_name),
+							s.api_rare,
+							s.api_type.join('/'),
+							s.api_broken.join('/'),
+							Object.keys(statsApiMap).filter(k => !!s[k])
+								.map(k => statsApiMap[k] + ":" + s[k]).join('/'),
+							unkStatsApiArr.filter(k => !!s[k]).map(k => k.substr(4) + ":" + s[k]).join('/')
+						].join(",") + CSV_LINE_BREAKS;
+					}
+				});
+				const filename = self.makeFilename("Equipment", "csv");
+				self.saveFile(filename, exportData, "text/csv");
 			});
 			
 			// Export CSV: Abyssal Enemies
 			$(".tab_profile .export_csv_abyssal").on("click", function(event){
 				// CSV Headers
-				var exportData = [
+				let exportData = [
 					"ID", "Name", "SType", "HP", "FP", "AR", "TP", "AA", "Speed", "Equip1", "Equip2", "Equip3", "Equip4"
 				].join(",")+CSV_LINE_BREAKS;
 				KC3Database.con.enemy
@@ -467,7 +544,7 @@
 							].join(",")+CSV_LINE_BREAKS;
 						});
 						
-						var filename = self.makeFilename("AbyssalShips", "csv");
+						const filename = self.makeFilename("AbyssalShips", "csv");
 						self.saveFile(filename, exportData, "text/csv");
 					});
 			});
@@ -501,17 +578,6 @@
 				});
 			});
 			
-			// Clear RemodelDb
-			$(".tab_profile .clear_remodeldb").on("click", function(event) {
-				let result = confirm(
-					"You are about to remove ship remodel information, " +
-						"it won't be available until next time you restart game with KC3.");
-				if(result === true) {
-					delete localStorage.remodelDb;
-					window.location.reload();
-				}
-			});
-
 			// Reset Dismissed messages
 			$(".tab_profile .clear_dismissed").on("click", function(event){
 				// These variables may be moved into ConfigManager
@@ -526,9 +592,23 @@
 				ConfigManager.dismissed_hints = {};
 				delete ConfigManager.air_average;
 				delete ConfigManager.air_bounds;
+				delete ConfigManager.DBSubmission_enabled;
+				delete ConfigManager.DBSubmission_key;
 				ConfigManager.save();
 				// Give a response instead of alert
 				window.location.reload();
+			});
+			
+			// Clear RemodelDb (will be rebuilt on page reloaded)
+			$(".tab_profile .clear_remodeldb").on("click", function(event) {
+				const result = confirm(
+					"You are about to rebuild ship remodel information,\n"
+					+ "it won't be correct until next time you restart game with KC3 to get latest ship data."
+				);
+				if(result === true) {
+					delete localStorage.remodelDb;
+					window.location.reload();
+				}
 			});
 			
 			// Clear inconsistent localStorage cached ships & gears
@@ -544,8 +624,8 @@
 			$(".tab_profile .clear_fcf").on("click", function(event){
 				if(!confirm("Have you closed the game?\nThis fix won't work if you haven't closed the game."))
 					return false;
-				var json = localStorage.ships;
-				var hash = json.hashCode();
+				let json = localStorage.ships;
+				const hash = json.hashCode();
 				json = json.replace(/,\"didFlee\":(true|false)/g, "")
 						   .replace(/,\"mvp\":(true|false)/g, "");
 				if(hash !== json.hashCode()){
@@ -567,6 +647,18 @@
 						|| d.uniqid.indexOf(d.ke) === -1;
 				}).delete().then((count) => {
 					if(count) alert("Done!"); else alert("No bug found!");
+				});
+			});
+			
+			// Clear old encounter data from phase 1 normal maps
+			$(".tab_profile .clear_old_encounters").on("click", function(event){
+				if(!confirm("Are you sure? Lost data would not be recovered."))
+					return false;
+				KC3Database.con.encounters.where("world").below(10).delete().then(() => {
+					alert("Done!");
+				}).catch(err => {
+					console.error("Removing encounters entries", err);
+					alert("Oops! There is something wrong. You might report the error logs.");
 				});
 			});
 			
@@ -615,7 +707,7 @@
 				// Fix table `enemy`. To update primary key, have to delete all records first
 				KC3Database.con.enemy.toArray(function(enemyList){
 					KC3Database.con.enemy.clear();
-					for(let r of enemyList){
+					for(const r of enemyList){
 						if(r.id < 1501) { r.id += 1000; }
 						KC3Database.Enemy(r);
 					}
@@ -635,7 +727,7 @@
 				// Fix table `encounters`. To update primary key, have to delete all records first
 				KC3Database.con.encounters.toArray(function(encList){
 					KC3Database.con.encounters.clear();
-					for(let r of encList){
+					for(const r of encList){
 						const ke = JSON.parse(r.ke || null);
 						const keu = updateKe(ke);
 						if(ke !== keu){
@@ -672,10 +764,104 @@
 				});
 			});
 			
+			const isEventMapInfoMissing = () => {
+				if(!localStorage.maps) return true;
+				return ! Object.keys(localStorage.getObject("maps"))
+					.map(v => Number(v.substr(1, v.length > 3 ? 2 : 1))).some(v => v >= 10);
+			};
+			
+			// Craft localStorage.maps for event maps if player loses his data for some reasons
+			$(".tab_profile .fix_mapinfo").on("click", function(event){
+				if(!isEventMapInfoMissing() && !confirm(
+					"The data of your event maps seem be existing already,\n" +
+					"Continue to complete your missing data?"))
+					return;
+				const maps = JSON.parse(localStorage.maps || "{}");
+				const fixed = [], cleared = {};
+				KC3Database.con.sortie.where("world").above(9).reverse().each(r => {
+					const mapId = [r.world, r.mapnum].join(""), key = "m" + mapId;
+					const event = r.eventmap || {}, map = maps[key] || {};
+					if(!fixed.includes(key) &&
+						(maps[key] === undefined || map.pseudo || map.maxhp === 9999 ||
+							(map.kind === "gauge-hp" && !map.baseHp))) {
+						fixed.push(key);
+						const isFirstPseudo = maps[key] === undefined || map.clear === undefined;
+						maps[key] = {
+							id: Number(mapId),
+							difficulty: r.diff,
+							// assume map cleared, and have these pseudo data:
+							clear: isFirstPseudo ? 1 : map.clear,
+							kind: map.kind || "gauge-hp",
+							curhp: map.curhp || 0,
+							maxhp: (map.maxhp === 9999 ? 0 : map.maxhp) || event.api_max_maphp || 9999,
+							pseudo: true,
+							// `stat` might be able to rebuild from all battle records of that map?
+						};
+						if(map.baseHp || map.kind === "gauge-hp")
+							maps[key].baseHp = map.baseHp || false;
+						if(map.stat) maps[key].stat = map.stat;
+					}
+					if(r.eventmap) {
+						// can confirm clear flag from latest history records, but can not sure 'not cleared' easily,
+						// maybe walk through all battle data to determine if map is finally cleared and the boss remained hp?
+						//if(event.api_max_maphp) maps[key].maxhp = event.api_max_maphp;
+						cleared[key] |= !!(event.api_cleared || event.api_first_clear);
+						// perhaps it's easier that list up all unknown maps, let user tick which ones are cleared manually
+					}
+				}).then(() => {
+					localStorage.setObject("maps", maps);
+					console.info("Rebuilt event map info", fixed, cleared, maps);/*RemoveLogging:skip*/
+					alert(`Done! Maps added: ${fixed.join(', ') || 'none'}.` +
+						"\nNOTE: they are assumed as cleared since lack of information.");
+				}).catch(err => {
+					console.error("Rebuilding event map info", err);
+					alert("Oops! There is something wrong. You might report the error logs.");
+				});
+			});
+			
+			// Fix player member ID in all tables after 2018-08-01 if player transferred to another server
+			$(".tab_profile .fix_playerid").on("click", function(event){
+				const newId = PlayerManager.hq.id;
+				if(!confirm("CAUTION: All your records of history database will be updated.\n" +
+					"Do you confirm you have been transferred to a new server,\n" +
+					"and is this your new player ID: {0}?\n".format(newId) +
+					"If not, choose Cancel, restart your game then reload this page first."))
+					return false;
+				alert("Will begin to update your database,\n" +
+					"might take a long time if your data amount is mass.\n" +
+					"Do not leave this page until new dialog box shown.");
+				let errorOccurred = false;
+				const updateTable = (table) => {
+					return KC3Database.con[table].toCollection()
+						.modify(r => { r.hq = newId; })
+						.then(c => {
+							console.info(`Player ID for [${table}] updated, affected: ${c}`);/*RemoveLogging:skip*/
+						}).catch(e => {
+							errorOccurred = true;
+							console.error(`Player ID updating for [${table}]`, e);
+						});
+				};
+				const promiseArray = [];
+				KC3Database.con.tables.forEach(table => {
+					if(Object.keys(table.schema.instanceTemplate).includes("hq")) {
+						promiseArray.push(updateTable(table.name));
+					}
+				});
+				Promise.all(promiseArray).then(results => {
+					if(errorOccurred) {
+						alert("Oops! There is something wrong. You might report the error logs.");
+					} else {
+						alert("All done!" + (!isEventMapInfoMissing() ? "" :
+							"\nIt seems that your event map information in Profile have lost too." +
+							"\nTo fix events history map buttons, try the rebuild link above."));
+					}
+				});
+			});
+			
 		},
 		
 		refreshHealthMetric: function(){
-			var bc = this.battleCounts;
+			const bc = this.battleCounts;
 			if(Object.keys(bc).length < 2) return;
 			$(".day_battle_total_24 .rank_content").html(
 				'{0}<span style="font-weight:normal"> (during {1} sorties)</span>'
@@ -697,7 +883,7 @@
 		},
 		
 		refreshNewsfeed: function(showRawNewsfeed){
-			var self = this;
+			const self = this;
 			if(this.newsfeed && this.newsfeed.time){
 				this.newsfeed.log.forEach(function(log, i){
 					// we are using the same timestamp for making it look like a proper log,
@@ -710,11 +896,12 @@
 			} else {
 				$(".newsfeed").hide();
 			}
+			$(".newsfeed .feed_text").toggleClass("jp_fonts", showRawNewsfeed);
 		},
 		
 		showFeedItem: function(index, time, log, showRawNewsfeed){
-			var isRaw = !!showRawNewsfeed || ConfigManager.language == "jp";
-			var selector = ".newsfeed .feed_item_{0}".format(index + 1);
+			const isRaw = !!showRawNewsfeed || ConfigManager.language == "jp";
+			const selector = ".newsfeed .feed_item_{0}".format(index + 1);
 			$(selector + " .time").text(new Date(time).format("mm/dd HH:MM"));
 			switch(log.api_type){
 			case "1":
@@ -727,11 +914,12 @@
 				break;
 			case "3":
 				$(selector + " .colorbox").css("background", "#ace");
-				$(selector + " .feed_text").html(isRaw ? log.api_message : KC3Meta.term("NewsfeedExped"));
+				const fleetName = log.api_message.substring(0, log.api_message.indexOf("が")) || "艦隊";
+				$(selector + " .feed_text").html(isRaw ? log.api_message : KC3Meta.term("NewsfeedExped").format(fleetName));
 				break;
 			case "5":
 				$(selector + " .colorbox").css("background", "#98e75f");
-				var opponent = log.api_message.substring(1, log.api_message.indexOf("」"));
+				const opponent = log.api_message.substring(0, log.api_message.indexOf("さんとの"));
 				if(log.api_message.indexOf("勝利") > -1){
 					$(selector + " .feed_text").html(isRaw ? log.api_message : KC3Meta.term("NewsfeedPvPWin").format(opponent));
 				} else if(log.api_message.indexOf("敗北") > -1){
@@ -743,6 +931,10 @@
 			case "7":
 				$(selector + " .colorbox").css("background", "#d75048");
 				$(selector + " .feed_text").html(isRaw ? log.api_message : KC3Meta.term("NewsfeedUnlockMap"));
+				break;
+			case "8":
+				$(selector + " .colorbox").css("background", "#d75048");
+				$(selector + " .feed_text").html(isRaw ? log.api_message : KC3Meta.term("NewsfeedUnlockArea"));
 				break;
 			case "11":
 				$(selector + " .colorbox").css("background", "#9999ff");
@@ -760,7 +952,7 @@
 		},
 		
 		saveFile: function(filename, data, type){
-			var blob = new Blob([data], {type: type+";charset=utf-8"});
+			const blob = new Blob([data], {type: type+";charset=utf-8"});
 			saveAs(blob, filename);
 		}
 		

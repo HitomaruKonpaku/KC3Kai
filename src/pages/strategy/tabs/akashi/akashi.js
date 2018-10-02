@@ -78,9 +78,9 @@
 				self.instances[ThisGear.masterId].star6_9 += (ThisGear.stars >= 6 && ThisGear.stars < 10) & 1;
 				self.instances[ThisGear.masterId].starmax += (ThisGear.stars == 10) & 1;
 				self.instances[ThisGear.masterId].unequipped += 1 & (self.heldGearRosterIds.indexOf(ThisGear.itemId) === -1);
-				self.instances[ThisGear.masterId].free += 1 & (ThisGear.lock === 0 &&
+				self.instances[ThisGear.masterId].free += 1 & (!ThisGear.lock &&
 					self.heldGearRosterIds.indexOf(ThisGear.itemId) === -1);
-				self.instances[ThisGear.masterId].freestar0 += 1 & (!ThisGear.stars && ThisGear.lock === 0 &&
+				self.instances[ThisGear.masterId].freestar0 += 1 & (!ThisGear.stars && !ThisGear.lock &&
 					self.heldGearRosterIds.indexOf(ThisGear.itemId) === -1);
 			});
 		},
@@ -89,8 +89,9 @@
 		Places data onto the interface
 		---------------------------------*/
 		execute :function(){
-			var self = this;
+			const self = this;
 			self.hideNotImprovable = false;
+			this.reload();
 			
 			$(".tab_akashi .weekday").on("click", function(){
 				KC3StrategyTabs.gotoTab(null, $(this).data("value"));
@@ -148,7 +149,7 @@
 					|| Number(a) - Number(b);
 			});
 			
-			$(".equipment_list").empty();
+			$(".equipment_list").html("");
 			
 			var ThisBox, MasterItem, ItemName;
 			var hasShip, hasGear, ctr;
@@ -203,7 +204,7 @@
 					return;
 				}
 				$(".eq_res_icon.consumed_icon.plus{0} img".format(stars), container)
-					.attr("src", "../../assets/img/items/"+consumedItem.api_type[3]+".png");
+					.attr("src", KC3Meta.itemIcon(consumedItem.api_type[3]));
 				$(".eq_res_icon.consumed_icon.plus{0}".format(stars), container)
 					.attr("alt", consumedItem.api_id);
 				$(".eq_res_icon.consumed_icon.plus{0}".format(stars), container)
@@ -228,8 +229,9 @@
 							showConsumedItem(stars, null, container);
 						}
 					} else if(itemName !== null){
-						let extraBox = $(".extra_consumed.plus{0}".format(stars), container)
-							.clone().appendTo($(".eq_res_line.plus{0}".format(stars), container));
+						let extraBox = $(".extra_consumed.template.plus{0}".format(stars), container)
+							.clone().removeClass("template")
+							.appendTo($(".eq_res_line.plus{0}".format(stars), container));
 						let consumedItem = toSlotOrUseItem(itemName);
 						showConsumedItem(stars, consumedItem, itemCount, extraBox);
 						checkConsumedItem(stars, consumedItem, itemCount, extraBox);
@@ -302,7 +304,7 @@
 				
 				ThisBox = $(".tab_akashi .factory .equipment").clone().appendTo(".equipment_list");
 				
-				$(".eq_icon img", ThisBox).attr("src", "../../assets/img/items/"+MasterItem.api_type[3]+".png");
+				$(".eq_icon img", ThisBox).attr("src", KC3Meta.itemIcon(MasterItem.api_type[3]));
 				$(".eq_icon img", ThisBox).attr("alt", MasterItem.api_id);
 				$(".eq_icon img", ThisBox).click(gearClickFunc);
 				
@@ -359,9 +361,10 @@
 						
 						// Add some precondition ship icons as not check them yet
 						if(improveList.length > 1){
-							var shipIcons = $(".eq_res_label.material", ResBox).empty();
+							var shipIcons = $(".eq_res_label.material", ResBox);
 							imp.req.forEach(function(reqArr){
-								if(reqArr[0][dayIdx] && reqArr[1]){
+								if(reqArr[0][dayIdx] && reqArr[1] && reqArr[1].length){
+									shipIcons.empty();
 									reqArr[1].forEach(function(reqShipId){
 										var remodel = WhoCallsTheFleetDb.getShipRemodel(reqShipId);
 										if(!remodel || !remodel.prev
@@ -399,7 +402,7 @@
 							checkDevScrew("max", itemId, resArr[3][1], resArr[3][2]);
 							showConsumedItemList("max", resArr[3][4], resArr[3][5]);
 							upgradedItem = KC3Master.slotitem(imp.upgrade[0]);
-							$(".eq_next .eq_res_icon img", ResBox).attr("src", "../../assets/img/items/"+upgradedItem.api_type[3]+".png");
+							$(".eq_next .eq_res_icon img", ResBox).attr("src", KC3Meta.itemIcon(upgradedItem.api_type[3]));
 							$(".eq_next .eq_res_icon", ResBox).attr("alt", upgradedItem.api_id);
 							$(".eq_next .eq_res_icon", ResBox).click(gearClickFunc);
 							$(".eq_next .eq_res_name .name_val", ResBox).text( KC3Meta.gearName(upgradedItem.api_name) );

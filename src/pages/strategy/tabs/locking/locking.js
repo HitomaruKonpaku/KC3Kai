@@ -12,8 +12,9 @@
         init() {
             this.defineSorters();
             this.showListRowCallback = this.showShipLockingRow;
-            this.lockLimit = 5;
+            this.lockLimit = 6;
             this.heartLockMode = 2;
+            this.showShipLevel = true;
         }
 
         /* RELOAD
@@ -39,6 +40,11 @@
             
             this.tab = $(".tab_locking");
             $(".clearAllPlans", this.tab).on("click", this.clearAllPlannedLocks.bind(this));
+            $(".toggleShipLevel", this.tab).on("click", (e) => {
+                this.showShipLevel = !this.showShipLevel;
+                $(".ships_area .lship .level").toggle(this.showShipLevel);
+            });
+            $(".ships_area .lship .level").toggle(this.showShipLevel);
             
             this.shipListDiv = $(".ship_list", this.tab);
             this.shipListDiv.on("preShow", () => {
@@ -51,6 +57,9 @@
             this.shipRowTemplateDiv = $(".factory .ship_item", this.tab);
             this.addFilterUI();
             this.showListGrid();
+            $(".ship_header .ship_stat img").each((_, img) => {
+                $(img).attr("src", KC3Meta.statIcon($(img).parent().data("type")));
+            });
             this.shipListHeaderDiv = $(".ship_header .ship_field.hover", this.tab);
             this.registerShipListHeaderEvent(this.shipListHeaderDiv);
             this.shipListHeaderDiv.on("click", (e) => {
@@ -104,6 +113,7 @@
         adjustHeight() {
             this.setStyleVar("--shipListOffsetTop",
                 $(".ship_list", this.tab).offset().top + "px");
+            this.updateLockCount();
         }
 
         mapShipLockingStatus(shipObj) {
@@ -163,6 +173,7 @@
                 });
                 this.lockPlans[tag] = shipIds.filter(id => id !== undefined);
             });
+            this.updateLockCount();
         }
 
         defineSorters() {
@@ -249,7 +260,7 @@
                 const gear = KC3GearManager.get(equipId);
                 if(gear.exists()) {
                     $("img", element)
-                        .attr("src", `/assets/img/items/${gear.master().api_type[3]}.png`)
+                        .attr("src", KC3Meta.itemIcon(gear.master().api_type[3]))
                         .attr("alt", gear.master().api_id)
                         .click(this.gearClickFunc)
                         .error(function() {
@@ -349,28 +360,28 @@
 
         prepareFilters() {
             this.defineSimpleFilter("speed", [], 0,
-                (index, ship) => {
+                (filterDef, ship) => {
                     return (this.filterValues.speed === 0)
                         || (this.filterValues.speed === 1 && ship.speed < 10)
                         || (this.filterValues.speed === 2 && ship.speed >= 10);
                 }
             );
             this.defineSimpleFilter("daihatsu", [], 0,
-                (index, ship) => {
+                (filterDef, ship) => {
                     return (this.filterValues.daihatsu === 0)
                         || (this.filterValues.daihatsu === 1 && ship.canEquipDaihatsu)
                         || (this.filterValues.daihatsu === 2 && !ship.canEquipDaihatsu);
                 }
             );
             this.defineSimpleFilter("tagLocked", [], 0,
-                (index, ship) => {
+                (filterDef, ship) => {
                     return (!this.filterValues.tagLocked)
                         || (this.filterValues.tagLocked && !ship.sally);
                 }
             );
 
             this.defineSimpleFilter("shipType", [], 0,
-                (index, ship) => {
+                (filterDef, ship) => {
                     return (this.filterValues.stypes.length === 0)
                         || (this.filterValues.stypes.indexOf(ship.stype) !== -1);
                 }
@@ -378,10 +389,17 @@
         }
 
         loadShipLockPlan() {
-            if (localStorage.lock_plan !== undefined)
+            if (localStorage.lock_plan !== undefined) {
                 this.lockPlans = JSON.parse(localStorage.lock_plan);
-            else
+                // Add insufficient & remove overflow, guarantee = `this.lockLimit`
+                while (this.lockPlans.length < this.lockLimit) {
+                    this.lockPlans.push([]);
+                }
+                if (this.lockPlans.length > this.lockLimit)
+                    this.lockPlans.length = this.lockLimit;
+            } else {
                 this.resetShipLockPlan();
+            }
         }
 
         resetShipLockPlan() {
@@ -403,6 +421,7 @@
                 .appendTo(`.tab_locking .lock_mode_${boxIndex + 1} .ships_area`);
 
             $("img", shipBox).attr("src", KC3Meta.shipIcon(ship.masterId));
+            $(".level", shipBox).text(ship.level).toggle(this.showShipLevel);
             shipBox.data("ship_id", ship.id);
             shipBox.attr("data-rosterid", ship.id );
             shipBox.attr("data-boxcolorid", boxIndex);
@@ -423,6 +442,7 @@
                     cursor: "move",
                     start: (e, ui) => {
                         $(e.target).tooltip("disable");
+                        $(".level", e.target).hide();
                     }
                 });
             }
@@ -480,6 +500,14 @@
                 .text("").addClass("lock_mode_" + (newLockPlan + 1));
             ship.lockPlan = newLockPlan;
         }
+
+        updateLockCount() {
+            $('.lock_mode').each((i, e) => {
+                var count = $('.ships_area>div', e).length;
+                $('.ship_count', e).text(count);
+            });
+        }
+
     }
 
     KC3StrategyTabs.locking = new KC3StrategyTab("locking");

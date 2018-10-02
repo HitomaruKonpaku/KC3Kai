@@ -3,7 +3,7 @@
 \*******************************/
 /* GOOGLE ANALYTICS
 -------------------------------*/
-if (typeof NO_GA == "undefined") {
+if (!window.NO_GA) {
 	var _gaq = _gaq || [];
 	_gaq.push(['_setAccount', 'UA-9789944-12']);
 	(function() {
@@ -43,7 +43,7 @@ var dateFormat = function () {
 		};
 
 	// Regexes and supporting functions are cached through closure
-	return function (date, mask, utc) {
+	return function (date, mask, utc, locale) {
 		var dF = dateFormat;
 
 		// You can't provide utc if you skip other args (use the "UTC:" mask prefix)
@@ -77,12 +77,12 @@ var dateFormat = function () {
 			flags = {
 				d:    d,
 				dd:   pad(d),
-				ddd:  dF.i18n.dayNames[D],
-				dddd: dF.i18n.dayNames[D + 7],
+				ddd:  locale ? date.toLocaleString(locale, {weekday: "short"}) : dF.i18n.dayNames[D],
+				dddd: locale ? date.toLocaleString(locale, {weekday: "long"}) : dF.i18n.dayNames[D + 7],
 				m:    m + 1,
 				mm:   pad(m + 1),
-				mmm:  dF.i18n.monthNames[m],
-				mmmm: dF.i18n.monthNames[m + 12],
+				mmm:  locale ? date.toLocaleString(locale, {month: "short"}) : dF.i18n.monthNames[m],
+				mmmm: locale ? date.toLocaleString(locale, {month: "long"}) : dF.i18n.monthNames[m + 12],
 				yy:   String(y).slice(2),
 				yyyy: y,
 				h:    H % 12 || 12,
@@ -120,6 +120,7 @@ dateFormat.masks = {
 	shortTime:      "h:MM TT",
 	mediumTime:     "h:MM:ss TT",
 	longTime:       "h:MM:ss TT Z",
+	fullDateTime:   "yyyy-mm-dd dddd HH:MM:ss Z",
 	isoDate:        "yyyy-mm-dd",
 	isoTime:        "HH:MM:ss",
 	isoDateTime:    "yyyy-mm-dd'T'HH:MM:ss",
@@ -254,6 +255,62 @@ String.prototype.insert = function (index, string) {
 String.prototype.toArray = function() {
 	return this.split("");
 };
+
+/**
+ * Capitalize first letter and lower case left letters.
+ */
+String.prototype.capitalize = function() {
+	return this.charAt(0).toUpperCase() + this.slice(1).toLowerCase();
+};
+
+/**
+ * String identifier to camel case.
+ * Will remove spaces, [_$] and also [@+-/*\,.%&#!?:;]. Upper first letter, but not lower left letters of word.
+ * @param isToUpper - to upper camel case instead of lower camel case.
+ */
+String.prototype.toCamelCase = function(isToUpper) {
+	return this.replace(/[_$@\+\-\*\/\\\.,%&#!?:;]/g, ' ').trim().replace(/^([A-Za-z])|[\s]+(\w)/g,
+	function(match, p1, p2) {
+		if(p2) return p2.toUpperCase();
+		return isToUpper ? p1.toUpperCase() : p1.toLowerCase();
+	});
+};
+
+/**
+ * Pad the current string with a given string (repeated, if needed)
+ * so that the resulting string reaches a given length.
+ * @see https://github.com/uxitten/polyfill/blob/master/string.polyfill.js
+ */
+String.prototype.pad = function (targetLength, padString, isPadEnd) {
+	// truncate if number or convert non-number to 0
+	targetLength = targetLength >> 0;
+	padString = String((typeof padString !== 'undefined' ? padString : ' '));
+	if (this.length > targetLength) {
+		return String(this);
+	} else {
+		targetLength = targetLength - this.length;
+		if (targetLength > padString.length) {
+			// append to original to ensure we are longer than needed
+			padString += padString.repeat(targetLength / padString.length);
+		}
+		// pad from start by default
+		return !!isPadEnd ? String(this) + padString.slice(0, targetLength) :
+			padString.slice(0, targetLength) + String(this);
+	}
+};
+/**
+ * Polyfill of padStart() and padEnd()
+ */
+if (!String.prototype.padStart) {
+	String.prototype.padStart = function(targetLength, padString) {
+		return this.pad(targetLength, padString, false);
+	};
+}
+if (!String.prototype.padEnd) {
+	String.prototype.padEnd = function(targetLength, padString) {
+		return this.pad(targetLength, padString, true);
+	};
+}
 
 /**
  * String.format("msg {0} is {1}", args) - convenient placeholders replacing,
@@ -561,6 +618,49 @@ Array.pad = function(array, length, value, original){
 	}
 	return array;
 };
+// To avoid for...in iteration hitting this function, uses Object.defineProperty like other polyfill
+Object.defineProperty(Array.prototype, "sumValues", {
+	enumerable: false, // although it is false by default
+	/**
+	 * A convenient method to sum all the numbers in Array.
+	 * Equivalent to a code like `[].reduce((acc, v) => acc + v, 0)`.
+	 * @param getter - an optional function to convert each element to numeric value
+	 */
+	value: function sumValues(getter) {
+		var thisArray = this;
+		return thisArray.reduce(function(acc, v, i) {
+			return acc + (Number(typeof getter === "function" ? getter(v, i, acc, thisArray) : v) || 0);
+		}, 0);
+	}
+});
+
+Object.defineProperty(Array.prototype, "joinIfNeeded", {
+	enumerable: false,
+	/**
+	 * A convenient method to join Array elements with space if char between 2 elements are ascii.
+	 * @param separator - an optional string to use other separator instead of space.
+	 * @param testCallback - an optional function to test interfacing chars are ascii or not.
+	 */
+	value: function joinIfNeeded(separator, testCallback) {
+		separator = separator || " ";
+		testCallback = testCallback || function(prevStr, nextStr) {
+			var tailChar = String(prevStr).slice(-1).charCodeAt(0),
+				headChar = String(nextStr).charCodeAt(0);
+			return tailChar > 32 && tailChar < 256 && headChar > 32 && headChar < 256;
+		};
+		var thisArray = this, resultArray = [];
+		if(thisArray.length) {
+			if(thisArray.length === 1) resultArray.push(thisArray[0]);
+			thisArray.reduce(function(lastElm, thisElm, i) {
+				if(i === 1) resultArray.push(lastElm);
+				if(testCallback(lastElm, thisElm)) resultArray.push(separator);
+				resultArray.push(thisElm);
+				return thisElm;
+			});
+		}
+		return resultArray.join("");
+	}
+});
 
 /*******************************\
 |*** Object                     |
@@ -628,8 +728,8 @@ Object.sumValuesByKey = function(){
 	}
 
 	Object.defineProperties(Date.prototype,{
-		format: { value: function format(mask, utc) {
-			return dateFormat(this, mask, utc);
+		format: { value: function format(mask, utc, locale) {
+			return dateFormat(this, mask, utc, locale);
 		}},
 		shiftHour : { get: function () { return shiftTime.bind(this,'Hours'); } },
 		shiftDate : { get: function () { return shiftTime.bind(this,'Date' ); } },

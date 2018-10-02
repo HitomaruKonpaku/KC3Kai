@@ -17,6 +17,7 @@
         hougeki: {}, // shelling (砲撃)
         raigeki: {}, // torpedoes (雷撃)
         support: {}, // support expedition
+        friendly: {}, // night battle friend fleet support
       },
     },
     // Rank prediction
@@ -47,6 +48,21 @@
     }
   };
 
+  BP.analyzeBattlePartially = (battleData, playerDamecons, selectedPhases) => {
+    const { fleets, battle, formatResult } = KC3BattlePrediction;
+
+    try {
+      const initialFleets = fleets.getInitialState(battleData, playerDamecons);
+      const resultFleets = battle.simulateBattlePartially(battleData, initialFleets, selectedPhases);
+
+      return formatResult(initialFleets, resultFleets);
+    } catch (error) {
+      // Pass context explicitly, so it is recorded
+      KC3Log.error(error, error.data, { selectedPhases, battleData, playerDamecons });
+      throw error;
+    }
+  };
+
   BP.predictRank = (apiName, battleData, battleResult) => {
     const { parseStartJson, normalizeFleets, getRankPredictor } = KC3BattlePrediction.rank;
 
@@ -54,6 +70,18 @@
       normalizeFleets(parseStartJson(battleData), battleData),
       normalizeFleets(battleResult, battleData)
     );
+  };
+
+  BP.predictRankAndDamageGauge = (apiName, battleData, battleResult) => {
+    const { parseStartJson, normalizeFleets, getRankPredictor, getDamageGauge } = KC3BattlePrediction.rank;
+
+    const initialFleets = normalizeFleets(parseStartJson(battleData), battleData),
+      resultFleets = normalizeFleets(battleResult, battleData);
+
+    return [
+      getRankPredictor(apiName).predict(initialFleets, resultFleets),
+      getDamageGauge(initialFleets, resultFleets)
+    ];
   };
 
   BP.predictMvp = (dayResult, nightResult) => {
@@ -83,7 +111,7 @@
   // ---------------
 
   // Player or enemy ship
-  BP.Side = Object.freeze({ PLAYER: 'player', ENEMY: 'enemy' });
+  BP.Side = Object.freeze({ PLAYER: 'player', ENEMY: 'enemy', FRIEND: 'friend' });
 
   // Ship in main or escort fleet
   BP.Role = Object.freeze({ MAIN_FLEET: 'main', ESCORT_FLEET: 'escort' });
@@ -228,6 +256,17 @@
     )(battleData);
   };
 
+  battle.simulateBattlePartially = (battleData, initalFleets, battlePhases = []) => {
+    const { fleets: { simulateAttack } } = KC3BattlePrediction;
+    const { getPhaseParser } = KC3BattlePrediction.battle;
+
+    return pipe(
+      juxt(battlePhases.map(getPhaseParser)),
+      flatten,
+      reduce(simulateAttack, initalFleets)
+    )(battleData);
+  };
+
   /*--------------------------------------------------------*/
   /* ---------------------[ INTERNAL ]--------------------- */
   /*--------------------------------------------------------*/
@@ -341,6 +380,7 @@
 
     // night-to-day
     [toKey(Player.SINGLE, Enemy.COMBINED, Time.NIGHT_TO_DAY)]: [
+      'friendly',
       'nSupport',
       'nHougeki1',
       'nHougeki2',
@@ -357,12 +397,12 @@
     ],
 
     // night battle
-    [toKey(Player.SINGLE, Enemy.SINGLE, Time.NIGHT)]: ['nSupport', 'hougeki'],
-    [toKey(Player.CTF, Enemy.SINGLE, Time.NIGHT)]: ['nSupport', 'hougeki'],
-    [toKey(Player.STF, Enemy.SINGLE, Time.NIGHT)]: ['nSupport', 'hougeki'],
-    [toKey(Player.SINGLE, Enemy.COMBINED, Time.NIGHT)]: ['nSupport', 'hougeki'],
-    [toKey(Player.CTF, Enemy.COMBINED, Time.NIGHT)]: ['nSupport', 'hougeki'],
-    [toKey(Player.STF, Enemy.COMBINED, Time.NIGHT)]: ['nSupport', 'hougeki'],
+    [toKey(Player.SINGLE, Enemy.SINGLE, Time.NIGHT)]: ['friendly', 'nSupport', 'hougeki'],
+    [toKey(Player.CTF, Enemy.SINGLE, Time.NIGHT)]: ['friendly', 'nSupport', 'hougeki'],
+    [toKey(Player.STF, Enemy.SINGLE, Time.NIGHT)]: ['friendly', 'nSupport', 'hougeki'],
+    [toKey(Player.SINGLE, Enemy.COMBINED, Time.NIGHT)]: ['friendly', 'nSupport', 'hougeki'],
+    [toKey(Player.CTF, Enemy.COMBINED, Time.NIGHT)]: ['friendly', 'nSupport', 'hougeki'],
+    [toKey(Player.STF, Enemy.COMBINED, Time.NIGHT)]: ['friendly', 'nSupport', 'hougeki'],
   };
 
   battle.getBattlePhases = (battleType) => {
@@ -380,14 +420,14 @@
   const Fleets = {};
   const { Side } = KC3BattlePrediction;
   const { pipe, juxt, map, zipWith, over } = KC3BattlePrediction;
-  const COMBINED_FLEET_MAIN_SIZE = 6;
+  const COMBINED_FLEET_MAIN_ALIGN = 6;
   /*--------------------------------------------------------*/
   /* --------------------[ PUBLIC API ]-------------------- */
   /*--------------------------------------------------------*/
 
   // Create a Fleets object with the state of the player and enemy Fleets at battle start
   Fleets.getInitialState = (battleData, playerDamecons) => {
-    const { extractHps, installDamecons } = KC3BattlePrediction.fleets;
+    const { extractHps, extractSubInfo, installDamecons } = KC3BattlePrediction.fleets;
 
     return pipe(
       juxt([
@@ -395,22 +435,25 @@
         extractHps('api_f_nowhps_combined', 'api_f_maxhps_combined'),
         extractHps('api_e_nowhps', 'api_e_maxhps'),
         extractHps('api_e_nowhps_combined', 'api_e_maxhps_combined'),
+        pipe(extractSubInfo('api_friendly_info'), extractHps('api_nowhps', 'api_maxhps')),
       ]),
-      ([playerMain, playerEscort, enemyMain, enemyEscort]) => ({
+      ([playerMain, playerEscort, enemyMain, enemyEscort, friendMain]) => ({
         [Side.PLAYER]: { main: playerMain, escort: playerEscort },
         [Side.ENEMY]: { main: enemyMain, escort: enemyEscort },
+        // No escort fleet found yet for NPC friend fleet support
+        [Side.FRIEND]: { main: friendMain, escort: [] }
       }),
       over(Side.PLAYER, map(installDamecons(playerDamecons)))
     )(battleData);
   };
 
-  Fleets.simulateAttack = (fleets, { damage, defender, attacker }) => {
+  Fleets.simulateAttack = (fleets, { damage, defender, attacker, info }) => {
     const { getPath } = KC3BattlePrediction.fleets;
     const { dealDamage, takeDamage } = KC3BattlePrediction.fleets.ship;
 
     return pipe(
-      over(getPath(fleets, defender), takeDamage(damage)),
-      attacker ? over(getPath(fleets, attacker), dealDamage(damage)) : x => x
+      over(getPath(fleets, defender), takeDamage(damage, info)),
+      attacker ? over(getPath(fleets, attacker), dealDamage(damage, info)) : x => x
     )(fleets);
   };
 
@@ -422,11 +465,13 @@
     const { formatShip } = KC3BattlePrediction.fleets.ship;
     return pipe(
       mapShips(formatShip),
-      ({ player, enemy }) => ({
+      ({ [Side.PLAYER]: player, [Side.ENEMY]: enemy, [Side.FRIEND]: friend }) => ({
         playerMain: player.main,
         playerEscort: player.escort,
         enemyMain: enemy.main,
         enemyEscort: enemy.escort,
+        friendMain: friend.main,
+        friendEscort: friend.escort,
       })
     )(fleets);
   };
@@ -450,6 +495,10 @@
     return zipWith(createShip, nowHps, maxHps);
   };
 
+  Fleets.extractSubInfo = (subProp) => battleData => {
+    return battleData[subProp] || {};
+  };
+
   Fleets.installDamecons = playerDamecons => (fleet, fleetRole) => {
     const { installDamecon } = KC3BattlePrediction.fleets.ship;
 
@@ -466,7 +515,7 @@
     if (fleets[side].main[position]) {
       return `${side}.main.${position}`;
     }
-    const escortIndex = position - COMBINED_FLEET_MAIN_SIZE;
+    const escortIndex = position - COMBINED_FLEET_MAIN_ALIGN;
     if (fleets[side].escort[escortIndex]) {
       return `${side}.escort.${escortIndex}`;
     }
@@ -613,6 +662,7 @@
     nHougeki2: ({ parseHougeki }) => ({ api_n_hougeki2 }) => parseHougeki(api_n_hougeki2),
     // nb shelling
     hougeki: ({ parseHougeki }) => ({ api_hougeki }) => parseHougeki(api_hougeki),
+    friendly: ({ parseFriendly }) => ({ api_friendly_battle }) => parseFriendly(api_friendly_battle),
   };
 
   const wrapParser = parser => battleData => (battleData ? parser(battleData) : []);
@@ -622,6 +672,7 @@
       support: { parseSupport },
       hougeki: { parseHougeki },
       raigeki: { parseRaigeki },
+      friendly: { parseFriendly },
     } = KC3BattlePrediction.battle.phases;
 
     return {
@@ -629,6 +680,7 @@
       parseSupport: wrapParser(parseSupport),
       parseHougeki: wrapParser(parseHougeki),
       parseRaigeki: wrapParser(parseRaigeki),
+      parseFriendly: wrapParser(parseFriendly),
     };
   };
 
@@ -644,39 +696,106 @@
 }());
 
 (function () {
+  const Friendly = {};
+
+  /*--------------------------------------------------------*/
+  /* --------------------[ PUBLIC API ]-------------------- */
+  /*--------------------------------------------------------*/
+
+  Friendly.parseFriendly = ({ api_hougeki }) => {
+    const {
+      hougeki: { parseHougekiFriend },
+    } = KC3BattlePrediction.battle.phases;
+
+    return parseHougekiFriend(api_hougeki);
+  };
+
+  /*--------------------------------------------------------*/
+  /* ---------------------[ EXPORTS ]---------------------- */
+  /*--------------------------------------------------------*/
+
+  Object.assign(KC3BattlePrediction.battle.phases.friendly, Friendly);
+}());
+
+(function () {
   const Hougeki = {};
-  const HOUGEKI_PROPS = ['api_at_eflag', 'api_at_list', 'api_df_list', 'api_damage'];
-  const { pipe, map, Side } = KC3BattlePrediction;
+  const { pipe, map, juxt, flatten, Side } = KC3BattlePrediction;
 
   /*--------------------------------------------------------*/
   /* --------------------[ PUBLIC API ]-------------------- */
   /*--------------------------------------------------------*/
 
   Hougeki.parseHougeki = (battleData) => {
-    const { createAttack } = KC3BattlePrediction.battle;
-    const { extractFromJson } = KC3BattlePrediction.battle.phases;
-    const { parseJson } = KC3BattlePrediction.battle.phases.hougeki;
+    const { parseHougekiInternal } = KC3BattlePrediction.battle.phases.hougeki;
+    return parseHougekiInternal(battleData, false);
+  };
 
-    return pipe(
-      extractFromJson(HOUGEKI_PROPS),
-      map(parseJson),
-      map(createAttack)
-    )(battleData);
+  Hougeki.parseHougekiFriend = (battleData) => {
+    const { parseHougekiInternal } = KC3BattlePrediction.battle.phases.hougeki;
+    return parseHougekiInternal(battleData, true);
   };
 
   /*--------------------------------------------------------*/
   /* --------------------[ INTERNALS ]--------------------- */
   /*--------------------------------------------------------*/
 
-  Hougeki.parseJson = (attackJson) => {
-    const { parseDamage, parseAttacker, parseDefender } = KC3BattlePrediction.battle.phases.hougeki;
+  Hougeki.parseHougekiInternal = (battleData, isAllySideFriend = false) => {
+    const { createAttack } = KC3BattlePrediction.battle;
+    const { extractFromJson } = KC3BattlePrediction.battle.phases;
+    const { parseJson } = KC3BattlePrediction.battle.phases.hougeki;
+    const HOUGEKI_PROPS = battleData.api_at_type ?
+      ['api_at_eflag', 'api_at_list', 'api_df_list', 'api_damage', 'api_cl_list', 'api_si_list', 'api_at_type'] :
+      battleData.api_sp_list ?
+      ['api_at_eflag', 'api_at_list', 'api_df_list', 'api_damage', 'api_cl_list', 'api_si_list', 'api_sp_list'] :
+      ['api_at_eflag', 'api_at_list', 'api_df_list', 'api_damage'];
 
-    return {
+    return pipe(
+      juxt([pipe(
+        extractFromJson(HOUGEKI_PROPS),
+        map(parseJson.bind(null, isAllySideFriend))
+      )]),
+      flatten,
+      map(createAttack))(battleData);
+  };
+
+  Hougeki.parseJson = (isAllySideFriend, attackJson) => {
+    const { parseDamage, parseAttacker, parseDefender, parseAttackerFriend, parseDefenderFriend,
+      parseInfo, isNelsonTouch, parseNelsonTouch } = KC3BattlePrediction.battle.phases.hougeki;
+
+    return isNelsonTouch(attackJson) ? parseNelsonTouch(isAllySideFriend, attackJson) : {
       damage: parseDamage(attackJson),
-      attacker: parseAttacker(attackJson),
-      defender: parseDefender(attackJson),
+      attacker: isAllySideFriend ? parseAttackerFriend(attackJson) : parseAttacker(attackJson),
+      defender: isAllySideFriend ? parseDefenderFriend(attackJson) : parseDefender(attackJson),
+      info: parseInfo(attackJson),
     };
   };
+
+  // 1 Nelson Touch (CutIn) may attack 3 different targets,
+  // cannot ignore elements besides 1st one in api_df_list[] any more.
+  Hougeki.parseNelsonTouch = (isAllySideFriend, attackJson) => {
+    const { parseDamage, parseNelsonTouchAttacker, parseDefender,
+      parseInfo, isRealAttack } = KC3BattlePrediction.battle.phases.hougeki;
+
+    const { api_df_list: defenders, api_damage: damages } = attackJson;
+    return defenders.map((defender, index) => ({
+      damage: parseDamage({ api_damage: [damages[index]] }),
+      attacker: parseNelsonTouchAttacker(Object.assign({}, attackJson, {isAllySideFriend, index})),
+      // Assume abyssal enemy cannot trigger it yet, but PvP unknown.
+      defender: parseDefender({ api_df_list: [defender] }),
+      info: parseInfo(attackJson, index),
+    })).filter(isRealAttack);
+  };
+
+  Hougeki.isRealAttack = ({ defender }) => defender.position !== -1;
+
+  Hougeki.isNelsonTouch = ({ api_at_type, api_sp_list }) => (api_at_type || api_sp_list) === 100;
+
+  // Uncertain: according MVP result, attacker might be set to corresponding
+  // ship position (1st Nelson, 3th, 5th), not fixed to Nelson (api_at_list: 0).
+  Hougeki.parseNelsonTouchAttacker = ({ isAllySideFriend, index, api_at_eflag }) => ({
+    side: api_at_eflag === 1 ? Side.ENEMY : isAllySideFriend ? Side.FRIEND : Side.PLAYER,
+    position: [0, 2, 4][index] || 0,
+  });
 
   Hougeki.parseDamage = ({ api_damage }) =>
     api_damage.reduce((result, n) => result + Math.max(0, n), 0);
@@ -686,9 +805,28 @@
     position: api_at_list,
   });
 
+  Hougeki.parseAttackerFriend = ({ api_at_eflag, api_at_list }) => ({
+    side: api_at_eflag === 1 ? Side.ENEMY : Side.FRIEND,
+    position: api_at_list,
+  });
+
   Hougeki.parseDefender = ({ api_at_eflag, api_df_list }) => ({
     side: api_at_eflag === 1 ? Side.PLAYER : Side.ENEMY,
     position: api_df_list[0],
+  });
+
+  Hougeki.parseDefenderFriend = ({ api_at_eflag, api_df_list }) => ({
+    side: api_at_eflag === 1 ? Side.FRIEND : Side.ENEMY,
+    position: api_df_list[0],
+  });
+
+  Hougeki.parseInfo = ({ api_damage, api_cl_list, api_si_list, api_at_type, api_sp_list, api_df_list }, index = -1) => ({
+    damage: (index === -1 ? api_damage : [api_damage[index]]),
+    acc: (index === -1 ? api_cl_list : [api_cl_list[index]]),
+    equip: api_si_list,
+    cutin: api_at_type,
+    ncutin: api_sp_list,
+    target: (index === -1 ? api_df_list : [api_df_list[index]]),
   });
 
   /*--------------------------------------------------------*/
@@ -697,9 +835,9 @@
 
   Object.assign(KC3BattlePrediction.battle.phases.hougeki, Hougeki);
 }());
-
 // Parser for 航空 (aerial combat) phase
 (function () {
+  const COMBINED_FLEET_MAIN_ALIGN = 6;
   const Kouku = {};
   const { pipe, juxt, flatten, map, filter, Side } = KC3BattlePrediction;
   /*--------------------------------------------------------*/
@@ -709,14 +847,14 @@
   Kouku.parseKouku = (battleData) => {
     const { createAttack } = KC3BattlePrediction.battle;
     const {
-      mergeFleetDamageArrays,
+      normalizeFleetDamageArrays,
       parsePlayerJson,
       parseEnemyJson,
       isDamagingAttack,
     } = KC3BattlePrediction.battle.phases.kouku;
 
     return pipe(
-      mergeFleetDamageArrays,
+      normalizeFleetDamageArrays,
       juxt([parsePlayerJson, parseEnemyJson]),
       flatten,
       filter(isDamagingAttack),
@@ -728,18 +866,32 @@
   /* ---------------------[ INTERNAL ]--------------------- */
   /*--------------------------------------------------------*/
 
-  // Combine the damage arrays for main and escort fleets
-  Kouku.mergeFleetDamageArrays = ({ api_stage3, api_stage3_combined }) => ({
-    api_fdam: [].concat(
-      (api_stage3 && api_stage3.api_fdam) || [],
-      (api_stage3_combined && api_stage3_combined.api_fdam) || []
-    ),
-    api_edam: [].concat(
-      (api_stage3 && api_stage3.api_edam) || [],
-      (api_stage3_combined && api_stage3_combined.api_edam) || []
-    ),
-  });
 
+  Kouku.normalizeFleetDamageArrays = (battleData) => {
+    const { extractDamageArray, padDamageArray } = KC3BattlePrediction.battle.phases.kouku;
+
+    return pipe(
+      juxt([
+        extractDamageArray('api_stage3', 'api_fdam'),
+        extractDamageArray('api_stage3_combined', 'api_fdam'),
+        extractDamageArray('api_stage3', 'api_edam'),
+        extractDamageArray('api_stage3_combined', 'api_edam'),
+      ]),
+      map(padDamageArray),
+      ([playerMain, playerEscort, enemyMain, enemyEscort]) => ({
+        api_fdam: [].concat(playerMain, playerEscort),
+        api_edam: [].concat(enemyMain, enemyEscort),
+      })
+    )(battleData);
+  };
+
+  Kouku.extractDamageArray = (stageName, damageArrayName) => battleData =>
+    (battleData[stageName] && battleData[stageName][damageArrayName]) || [];
+
+  Kouku.padDamageArray = damageArray =>
+    (damageArray.length < COMBINED_FLEET_MAIN_ALIGN
+      ? damageArray.concat(new Array(COMBINED_FLEET_MAIN_ALIGN - damageArray.length).fill(0))
+      : damageArray);
 
   Kouku.parsePlayerJson = ({ api_fdam }) => api_fdam.map(
     (damage, position) => ({ damage, defender: { side: Side.PLAYER, position } })
@@ -1132,13 +1284,14 @@
 }());
 
 (function () {
-  const createAttack = ({ damage, defender, attacker }) => {
+  const createAttack = ({ damage, defender, attacker, info }) => {
     const { normalizeDamage, createTarget } = KC3BattlePrediction.battle;
 
     return Object.freeze({
       damage: normalizeDamage(damage),
       defender: createTarget(defender),
       attacker: attacker && createTarget(attacker),
+      info: info,
     });
   };
 
@@ -1152,7 +1305,6 @@
     normalizeDamage,
   });
 }());
-
 (function () {
   const Ship = {};
   const { EMPTY_SLOT } = KC3BattlePrediction;
@@ -1160,16 +1312,19 @@
   /* --------------------[ PUBLIC API ]-------------------- */
   /*--------------------------------------------------------*/
 
-  Ship.createShip = (hp, maxHp) => ({ hp, maxHp, damageDealt: 0 });
+  Ship.createShip = (hp, maxHp) => ({ hp, maxHp, damageDealt: 0, attacks: [] });
 
   Ship.installDamecon = (ship, damecon = 0) => Object.assign({}, ship, { damecon });
 
-  Ship.dealDamage = damage => ship =>
-    Object.assign({}, ship, { damageDealt: ship.damageDealt + damage });
+  Ship.dealDamage = (damage, info) => ship => {
+    if (info) { ship.attacks.push(Object.assign({}, info, { hp: ship.hp })); }
 
-  Ship.takeDamage = damage => ship => {
+    return Object.assign({}, ship, { damageDealt: ship.damageDealt + damage});
+  };
+
+  Ship.takeDamage = (damage, info) => ship => {
     const { tryDamecon } = KC3BattlePrediction.fleets.ship;
-
+    if (info) { info.ehp = ship.hp; }
     const result = Object.assign({}, ship, { hp: ship.hp - damage });
 
     return result.hp <= 0 ? tryDamecon(result) : result;
@@ -1183,6 +1338,7 @@
       dameConConsumed: ship.dameConConsumed || false,
       sunk: ship.hp <= 0,
       damageDealt: ship.damageDealt,
+      attacks: ship.attacks
     };
   };
 
@@ -1217,7 +1373,6 @@
 
   Object.assign(window.KC3BattlePrediction.fleets.ship, Ship);
 }());
-
 (function () {
   const createTarget = ({ side, position }) => {
     const { validateEnum, battle: { validatePosition }, Side } = KC3BattlePrediction;

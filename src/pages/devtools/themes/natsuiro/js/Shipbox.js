@@ -60,7 +60,7 @@ KC3改 Ship Box for Natsuiro theme
 		var myExItem = this.shipData.exItem();
 		if( myExItem.exists() ) {
 			$(".ex_item .gear_icon img", this.element)
-				.attr("src", "/assets/img/items/"+myExItem.master().api_type[3]+".png")
+				.attr("src", KC3Meta.itemIcon(myExItem.master().api_type[3]))
 				.attr("title", myExItem.htmlTooltip(undefined, this.shipData))
 				.data("masterId", myExItem.masterId)
 				.on("dblclick", function(e){
@@ -78,7 +78,7 @@ KC3改 Ship Box for Natsuiro theme
 			$(".ex_item", this.element).hide();
 		}
 		$(".ex_item", this.element).toggleClass("item_being_used",
-			ConfigManager.info_battle && (this.dameConConsumed.pos == 4 ||
+			ConfigManager.info_battle && (this.dameConConsumed.pos === 0 ||
 				// Although starshell not equippable at ex-slot for now
 				(this.starShellUsed && myExItem.masterId == 101))
 		);
@@ -171,7 +171,8 @@ KC3改 Ship Box for Natsuiro theme
 					: "";
 				const nextGoal = isFinite(shipGoal.battlesLeft) && shipGoal.battlesLeft > 0 ?
 					KC3Meta.term("PanelNextLvGoalLeft")
-						.format(shipGoal.targetLevel, shipGoal.battlesLeft) : "";
+						.format(shipGoal.targetLevel, shipGoal.battlesLeft,
+							shipGoal.baseExp || shipGoal.baseExpPerBattles) : "";
 				if(nextGoal){
 					if(title) title += "\n";
 					title += nextGoal;
@@ -202,11 +203,14 @@ KC3改 Ship Box for Natsuiro theme
 				"\u27A4{0}\n\u27A4{1}".format(shipMaster.api_fuel_max, shipMaster.api_bull_max)
 			).lazyInitTooltip();
 		}
-
-		this.showEquipment(0);
-		this.showEquipment(1);
-		this.showEquipment(2);
-		this.showEquipment(3);
+		
+		if(this.shipData.slotnum > 4){
+			$(".ship_supplies", this.element).addClass(`slot${this.shipData.slotnum}`);
+		}
+		
+		Array.numbers(0, Math.max(this.shipData.slotnum - 1, 3)).forEach(slot => {
+			this.showEquipment(slot);
+		});
 		
 		return this.element;
 	};
@@ -239,16 +243,17 @@ KC3改 Ship Box for Natsuiro theme
 		this.element.css("background-color", "transparent");
 		
 		// Import repair time script by @Javran
-		var RepairTimes = this.shipData.repairTime();
-		
-		if(RepairTimes.docking > 0){
-			$(".ship_hp_box", this.element).attr("title", 
-				KC3Meta.term("PanelDocking")+": "+String(RepairTimes.docking).toHHMMSS()+"\n"
-				+KC3Meta.term("PanelAkashi")+": "+
-					((RepairTimes.akashi>0)
-						?String(RepairTimes.akashi).toHHMMSS()
-						:KC3Meta.term("PanelCantRepair"))
-			).lazyInitTooltip({ position: { at: "left+25 bottom+5" } });
+		var repairTimes = this.shipData.repairTime();
+		var repairCost = this.shipData.calcRepairCost();
+
+		if(repairTimes.docking > 0){
+			$(".ship_hp_box", this.element).attr("title", [
+				KC3Meta.term("PanelDocking") + ": " + String(repairTimes.docking).toHHMMSS(),
+				KC3Meta.term("PanelAkashi")  + ": " + (
+					repairTimes.akashi > 0 ? String(repairTimes.akashi).toHHMMSS() : KC3Meta.term("PanelCantRepair")
+				),
+				KC3Meta.term("PanelRepairCost").format(repairCost.fuel, repairCost.steel)
+			].join("\n")).lazyInitTooltip({ position: { at: "left+25 bottom+5" } });
 		}else{
 			$(".ship_hp_box", this.element).attr("title", KC3Meta.term("PanelNoRepair"))
 				.lazyInitTooltip({ position: { at: "left+25 bottom+5" } });
@@ -400,7 +405,7 @@ KC3改 Ship Box for Natsuiro theme
 				}
 				
 				$(".ship_gear_"+(slot+1)+" .ship_gear_icon img", this.element).attr("src",
-					"/assets/img/items/"+thisGear.master().api_type[3]+".png");
+					KC3Meta.itemIcon(thisGear.master().api_type[3]));
 				$(".ship_gear_"+(slot+1), this.element).addClass("equipped");
 				$(".ship_gear_"+(slot+1)+" .ship_gear_icon", this.element)
 					.attr("titlealt", thisGear.htmlTooltip(this.shipData.slots[slot], this.shipData))
@@ -425,7 +430,7 @@ KC3改 Ship Box for Natsuiro theme
 						.attr("src", "/assets/img/client/achev/"+thisGear.ace+".png");
 				}
 				if (thisGear.stars > 0){
-				    // Is a normal equipment that can be upgraded
+					// Is a normal equipment that can be upgraded
 					$(".ship_gear_"+(slot+1)+" .ship_gear_star", this.element).show();
 					$(".ship_gear_"+(slot+1)+" .ship_gear_star", this.element).text(
 						thisGear.stars >= 10 ? "\u2605" : thisGear.stars
@@ -436,7 +441,7 @@ KC3改 Ship Box for Natsuiro theme
 				if(ConfigManager.info_battle){
 					$(".ship_gear_"+(slot+1)+" .ship_gear_icon", this.element).toggleClass("item_being_used",
 						// Consumed damecon slot
-						this.dameConConsumed.pos == slot ||
+						this.dameConConsumed.pos === slot+1 ||
 						// Mark all equipped starshell
 						(this.starShellUsed && thisGear.masterId == 101)
 					);
@@ -474,6 +479,8 @@ KC3改 Ship Box for Natsuiro theme
 				$(".ship_gear_"+(slot+1)+" .ship_gear_slot", this.element).text("");
 				$(".ship_gear_"+(slot+1)+" .ship_gear_slot", this.element).css("color", "");
 			}
+			
+			$(".ship_gear_"+(slot+1), this.element).show();
 		}else{
 			$(".ship_gear_"+(slot+1)+" .ship_gear_icon", this.element).hide();
 			$(".ship_gear_"+(slot+1)+" .ship_gear_slot", this.element).hide();

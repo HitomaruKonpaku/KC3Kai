@@ -165,10 +165,15 @@
         x = this._addSlotsInfo(ctx, canvas, x)+50;
         if (this.isShipList) {
             x = this._addConsumableImage(ctx, canvas, x, "medals") + 50;
-            this._addConsumableImage(ctx, canvas, x, "blueprints");
+            x = this._addConsumableImage(ctx, canvas, x, "blueprints") + 50;
+            x = this._addConsumableImage(ctx, canvas, x, "actionReport") + 50;
+            this._addConsumableImage(ctx, canvas, x, "protoCatapult");
         } else {
             x = this._addConsumableImage(ctx, canvas, x, "devmats") + 50;
-            this._addConsumableImage(ctx, canvas, x, "screws", !this.hasAkashi);
+            x = this._addConsumableImage(ctx, canvas, x, "screws", !this.hasAkashi) + 50;
+            x = this._addConsumableImage(ctx, canvas, x, "newArtilleryMaterial") + 50;
+            x = this._addConsumableImage(ctx, canvas, x, "newAviationMaterial") + 50;
+            this._addConsumableImage(ctx, canvas, x, "skilledCrew");
         }
 
         var topLine = this.isShipList ? "Ship List" : "Equipment List";
@@ -211,8 +216,9 @@
     };
 
     ShowcaseExporter.prototype._addConsumableImage = function (ctx, canvas, x, type, crossed = false) {
-        ctx.fillText(JSON.parse(localStorage.consumables)[type], x, canvas.height - 1);
-        x += ctx.measureText(JSON.parse(localStorage.consumables)[type]).width + 5;
+        var count = JSON.parse(localStorage.consumables)[type] || "0";
+        ctx.fillText(count, x, canvas.height - 1);
+        x += ctx.measureText(count).width + 5;
         ctx.drawImage(this._otherImages[type], x, canvas.height - 18, 18, 18);
         if(crossed) {
             ctx.beginPath();
@@ -273,19 +279,19 @@
             for (var i in self._statsImages) {
                 if (!self._statsImages.hasOwnProperty(i))
                     continue;
-                self._loadImage(i, "_statsImages", "/assets/img/stats/" + i + ".png", callback);
+                self._loadImage(i, "_statsImages", KC3Meta.statIcon(i, 1), callback);
             }
 
             for (i in self._equipTypeImages) {
                 if (!self._equipTypeImages.hasOwnProperty(i))
                     continue;
-                self._loadImage(i, "_equipTypeImages", "/assets/img/items/" + i + ".png", callback);
+                self._loadImage(i, "_equipTypeImages", KC3Meta.itemIcon(i), callback);
             }
 
             for (i in self._shipImages) {
                 if (!self._shipImages.hasOwnProperty(i))
                     continue;
-                self._loadImage(i, "_shipImages", "/assets/img/ships/" + i + ".png", callback);
+                self._loadImage(i, "_shipImages", KC3Meta.shipIcon(i, undefined, false), callback);
             }
 
             self._loadImage("medals", "_otherImages", "/assets/img/useitems/57.png", callback);
@@ -294,6 +300,13 @@
             self._loadImage("devmats", "_otherImages", "/assets/img/useitems/3.png", callback);
             self._loadImage("shipSlots", "_otherImages", "/assets/img/client/ship.png", callback);
             self._loadImage("gearSlots", "_otherImages", "/assets/img/client/gear.png", callback);
+
+            self._loadImage("actionReport", "_otherImages", "/assets/img/useitems/78.png", callback);
+            self._loadImage("protoCatapult","_otherImages", "/assets/img/useitems/65.png", callback);
+            self._loadImage("newArtilleryMaterial", "_otherImages", "/assets/img/useitems/75.png", callback);
+            self._loadImage("newAviationMaterial",  "_otherImages", "/assets/img/useitems/77.png", callback);
+            self._loadImage("skilledCrew",  "_otherImages", "/assets/img/useitems/70.png", callback);
+
         });
     };
 
@@ -471,16 +484,23 @@
             this.shipCount++;
         }
 
+        const groupShipsByClass = !!(this.buildSettings || {}).groupShipsByClass;
         for (i in this.allShipGroups) {
             if (this.allShipGroups[i].length > 0) {
                 this.allShipGroups[i].sort(function (shipA, shipB) {
-                    if (shipB.level !== shipA.level)
+                    // Get api_sort_id to group by class
+                    var [sidA, sidB] = [shipA.master().api_sort_id, shipB.master().api_sort_id];
+                    if (groupShipsByClass && sidA !== sidB) {
+                        return sidA - sidB;
+                    }
+                    if (shipA.level !== shipB.level) {
                         return shipB.level - shipA.level;
-                    else
-                        return shipB.masterId - shipA.masterId;
+                    }
+                    return shipB.masterId - shipA.masterId;
                 });
             }
         }
+
         return true;
     };
 
@@ -602,6 +622,7 @@
 
             var equip = allGears[i];
             var equipMaster = KC3Master.slotitem(equip.masterId);
+            if (!equipMaster) continue;
 
             var masterId = "m" + equip.masterId;
             var typeId = "t" + equipMaster.api_type[3];
@@ -615,12 +636,12 @@
 
             if (!sorted[groupId].types[typeId]) {
                 sorted[groupId].types[typeId] = {
-                    typeId: KC3Master.slotitem(equip.masterId).api_type[3],
-                    name: KC3Meta.gearTypeName(2, equipMaster.api_type[2]),
+                    typeId: equipMaster.api_type[3],
+                    name: KC3Meta.gearTypeName(3, equipMaster.api_type[3]),
                     gears: {}
                 };
-                this._equipTypeImages[KC3Master.slotitem(equip.masterId).api_type[3]] = null;
             }
+            this._equipTypeImages[equipMaster.api_type[3]] = null;
 
             if (!sorted[groupId].types[typeId].gears[masterId]) {
                 sorted[groupId].types[typeId].gears[masterId] = {
@@ -786,7 +807,18 @@
     ShowcaseExporter.prototype._addEquipGroupsToCanvas = function (group, canvas, ctx) {
         function compareEquip(a, b) {
             var equipA = KC3Master.slotitem(a.slice(1)), equipB = KC3Master.slotitem(b.slice(1));
-            return equipB[sortingParam] - equipA[sortingParam];
+            if (SPSortPart === "overall") {
+                var equipASum = 0, equipBSum = 0;
+                for (var i in equipParams) {
+                    if (typeof equipA[equipParams[i]] !== "undefined")
+                        equipASum += equipA[equipParams[i]];
+                    if (typeof equipB[equipParams[i]] !== "undefined")
+                        equipBSum += equipB[equipParams[i]];
+                }
+                return equipBSum - equipASum;
+            } else {
+                return equipB[sortingParam] - equipA[sortingParam];
+            }
         }
 
         var typeCount = Object.keys(group.types).length;
@@ -817,8 +849,10 @@
                     }
                 }
 
-                var sortingParam = this._paramToApi[KC3StrategyTabs.gears.definition._defaultCompareMethod[typeId]];
-                if (!!sortingParam) {
+                var SPSortPart = KC3StrategyTabs.gears.definition._defaultCompareMethod[typeId];
+                var equipParams = this._paramToApi;
+                var sortingParam = equipParams[SPSortPart];
+                if (!!sortingParam || SPSortPart === "overall") {
                     masterIds.sort(compareEquip);
                 }
 

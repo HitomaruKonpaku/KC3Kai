@@ -5,16 +5,19 @@
   /* --------------------[ PUBLIC API ]-------------------- */
   /*--------------------------------------------------------*/
 
-  Ship.createShip = (hp, maxHp) => ({ hp, maxHp, damageDealt: 0 });
+  Ship.createShip = (hp, maxHp) => ({ hp, maxHp, damageDealt: 0, attacks: [] });
 
   Ship.installDamecon = (ship, damecon = 0) => Object.assign({}, ship, { damecon });
 
-  Ship.dealDamage = damage => ship =>
-    Object.assign({}, ship, { damageDealt: ship.damageDealt + damage });
+  Ship.dealDamage = (damage, info) => ship => {
+    if (info) { ship.attacks.push(Object.assign({}, info, { hp: ship.hp })); }
 
-  Ship.takeDamage = damage => ship => {
+    return Object.assign({}, ship, { damageDealt: ship.damageDealt + damage});
+  };
+
+  Ship.takeDamage = (damage, info) => ship => {
     const { tryDamecon } = KC3BattlePrediction.fleets.ship;
-
+    if (info) { info.ehp = ship.hp; }
     const result = Object.assign({}, ship, { hp: ship.hp - damage });
 
     return result.hp <= 0 ? tryDamecon(result) : result;
@@ -28,6 +31,7 @@
       dameConConsumed: ship.dameConConsumed || false,
       sunk: ship.hp <= 0,
       damageDealt: ship.damageDealt,
+      attacks: ship.attacks
     };
   };
 

@@ -48,8 +48,8 @@
 			// Trigger pre-show event
 			this.shipListDiv.trigger("preShow");
 			// Clear old list
-			this.shipListDiv.hide().empty();
-			const delayMillis = 100;
+			this.shipListDiv.hide().html("");
+			const delayMillis = 0;
 			setTimeout(() => {
 				// Do list filtering
 				const filteredShipList = this.shipList.filter(ship => this.executeFilters(ship));
@@ -148,6 +148,7 @@
 				stype: shipMaster.api_stype,
 				ctype: shipMaster.api_ctype,
 				sortno: shipMaster.api_sortno,
+				sortId: shipMaster.api_sort_id,
 				name: shipObj.name(),
 				level: shipObj.level,
 				levelClass: shipObj.levelClass(),
@@ -170,15 +171,15 @@
 			define("type", "Type", ship => ship.stype);
 			define("ctype", "Class", ship => ship.ctype);
 			define("lv", "Level", ship => -ship.level);
-			define("sortno", "SortOrder", ship => ship.sortno);
+			define("sortno", "SortOrder", ship => ship.sortId);
 			define("morale", "Morale", ship => -ship.morale);
 		}
 
 		defineSimpleFilter(filterName, optionValues, defaultIndex, testShipFunc) {
 			const filterDef = {
 				optionValues: optionValues,
-				currentIndex: defaultIndex || null,
-				testShip: (ship) => testShipFunc(filterDef.currentIndex, ship)
+				currentIndex: defaultIndex === undefined ? null : defaultIndex,
+				testShip: (ship) => testShipFunc(filterDef, ship)
 			};
 			this.filterDefinitions[filterName] = filterDef;
 		}

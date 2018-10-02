@@ -18,7 +18,7 @@ Retrieves when needed to apply on components
 				version              : 8,
 				language             : "en",
 				hqInfoPage           : 1,
-				elosFormula          : 4,
+				elosFormula          : 2,
 				aaFormation          : 1,
 				imaginaryEnemyType   : 0,
 				imaginaryEnemyArmor  : 0,
@@ -43,8 +43,6 @@ Retrieves when needed to apply on components
 				repeatApiError       : true,
 				detailedApiError     : true,
 
-				DBSubmission_enabled : 0,
-				DBSubmission_key     : '',
 				PoiDBSubmission_enabled : false,
 				KC3DBSubmission_enabled : false,
 				OpenDBSubmission_enabled : false,
@@ -71,9 +69,12 @@ Retrieves when needed to apply on components
 				info_stats_diff      : 3,
 				info_eng_stype       : false,
 				info_force_ship_lang : "",
+				info_ship_class_name : false,
 				info_dex_owned_ship  : true,
 				info_chuuha_icon     : true,
 				info_seasonal_icon   : false,
+				info_items_iconset   : 0,
+				info_stats_iconset   : 0,
 				info_format_numbers  : false,
 				info_salt            : false,
 				info_troll           : false,
@@ -84,8 +85,8 @@ Retrieves when needed to apply on components
 				lock_prep : [],
 
 				ss_mode      : 0,
-				ss_type      : 'JPG',
-				ss_quality   : 70,
+				ss_type      : 'PNG',
+				ss_quality   : 90,
 				ss_directory : 'KanColle',
 				ss_dppx      : 1,
 
@@ -94,6 +95,12 @@ Retrieves when needed to apply on components
 				alert_morale_value : 40,
 				alert_type         : 1,
 				alert_custom       : "",
+				alert_type_exped   : 1,
+				alert_custom_exped : "",
+				alert_type_repair  : 1,
+				alert_custom_repair: "",
+				alert_type_cship   : 1,
+				alert_custom_cship : "",
 				alert_volume       : 60,
 				alert_desktop      : true,
 				alert_supply       : 3,
@@ -124,8 +131,8 @@ Retrieves when needed to apply on components
 				api_bg_position   : "top center",
 				api_gameScale     : 100,
 				api_subtitles     : true,
-				subtitle_font     : "\"Trebuchet MS\",\"Lucida Grande\",\"Lucida Sans Unicode\",\"Lucida Sans\",Tahoma,sans-serif",
-				subtitle_size     : 22,
+				subtitle_font     : '"Trebuchet MS","Lucida Grande","Lucida Sans Unicode","Lucida Sans",Tahoma,sans-serif',
+				subtitle_size     : 32,
 				subtitle_bold     : false,
 				subtitle_display  : "ghost",
 				subtitle_speaker  : false,
@@ -133,7 +140,9 @@ Retrieves when needed to apply on components
 				subtitle_duration : false,
 				google_translate  : true,
 				map_markers       : true,
+				map_letters       : false,
 				mute_game_tab     : false,
+				fix_game_code     : false,
 				dmm_forcecookies  : false,
 				dmm_customize     : false,
 				dmm_custom_css    : "",
@@ -152,6 +161,7 @@ Retrieves when needed to apply on components
 				dismissed_hints        : {},
 				sr_theme               : "legacy",
 				sr_show_non_battle     : true,
+				sr_show_new_shipstate  : true,
 				sr_custom_css          : "",
 
 				idbSaveSortie          : true,
@@ -231,10 +241,16 @@ Retrieves when needed to apply on components
 				this.idbSaveExcludeMaps.indexOf(mapId) > -1);
 		},
 		
+		// Current maximum pages of HQ info
+		getMaxHqInfoPage :function(){
+			return 3;
+		},
+		
 		// Toggle HQ Info Page
 		scrollHqInfoPage :function(){
 			this.loadIfNecessary();
-			this.hqInfoPage = (this.hqInfoPage % 3) + 1;
+			const maxPage = this.getMaxHqInfoPage() + (KC3Meta.isDuringFoodEvent() & 1);
+			this.hqInfoPage = (this.hqInfoPage % maxPage) + 1;
 			this.save();
 		},
 		
@@ -264,7 +280,7 @@ Retrieves when needed to apply on components
 				if(this.aaFormation < 11) this.aaFormation = 11;
 				if(this.aaFormation > 14) this.aaFormation = 11;
 			} else {
-				if(this.aaFormation > 5) this.aaFormation = 1;
+				if(this.aaFormation > 6) this.aaFormation = 1;
 			}
 			this.save();
 		},

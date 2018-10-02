@@ -28,7 +28,13 @@ Contains summary information about a fleet and its ships
 				enumerable: false,
 				configurable: false,
 				writable: true
-			}
+			},
+			shipsToEscape: {
+				value: [],
+				enumerable: false,
+				configurable: false,
+				writable: true
+			},
 		});
 
 		if(!!data) {
@@ -147,10 +153,28 @@ Contains summary information about a fleet and its ships
 		}
 	};
 	
-	// @return filtered ship object list not contain escaped (didFlee) ships.
-	// use this to reduce a `ship.didFlee` condition if ship position not concerned.
+	/**
+	 * Use this to reduce a `ship.didFlee` condition if ship position not concerned.
+	 * @return filtered ship object list not contain escaped (didFlee, or even sunk) ships.
+	 */
 	KC3Fleet.prototype.shipsUnescaped = function(){
-		return this.ship().filter(ship => !ship.didFlee);
+		if(this.shipsToEscape.length) {
+			return this.ship().filter(ship =>
+				! (ship.isAbsent() || this.shipsToEscape.includes(ship.rosterId))
+			);
+		}
+		return this.ship().filter(ship => !ship.isAbsent());
+	};
+	
+	/**
+	 * Set ship rosterId to assume her retreating for some reasons,
+	 * so all ship iterations via `shipUnescaped` will not count her.
+	 * Don't forget to reset this list to empty after some calculations.
+	 * @param rosterId - 1 or more ship ID(s) to be omitted
+	 */
+	KC3Fleet.prototype.setEscapeShip = function(...rosterIds){
+		this.shipsToEscape.length = 0;
+		this.shipsToEscape.push(...rosterIds);
 	};
 	
 	/*--------------------------------------------------------*/
@@ -452,13 +476,11 @@ Contains summary information about a fleet and its ships
 	};
 	
 	KC3Fleet.prototype.fighterPower = function(){
-		return this.shipsUnescaped().map(ship => ship.fighterPower())
-			.reduce((acc, v) => acc + v, 0);
+		return this.shipsUnescaped().map(ship => ship.fighterPower()).sumValues();
 	};
 	
 	KC3Fleet.prototype.fighterVeteran = function(){
-		return this.shipsUnescaped().map(ship => ship.fighterVeteran())
-			.reduce((acc, v) => acc + v, 0);
+		return this.shipsUnescaped().map(ship => ship.fighterVeteran()).sumValues();
 	};
 	
 	KC3Fleet.prototype.fighterBounds = function(){
@@ -510,11 +532,10 @@ Contains summary information about a fleet and its ships
 		const airControlModifiers = [0, 1, 0.6, 0.55 /* guessed, unknown value */, 0];
 		var rate = 0;
 		this.shipsUnescaped().forEach(ship => {
-			rate += [0, 1, 2, 3].map(idx => {
-				const gear = ship.equipment(idx);
-				return gear.isContactAircraft(false) ?
-					(0.04 * gear.master().api_saku * Math.sqrt(ship.slots[idx])) : 0;
-			}).reduce((acc, v) => acc + v, 0);
+			rate += ship.equipment().map(
+				(gear, idx) => gear.isContactAircraft(false) ?
+					(0.04 * gear.master().api_saku * Math.sqrt(ship.slotSize(idx))) : 0
+			).sumValues();
 		});
 		return rate * (airControlModifiers[dispSeiku] || 0);
 	};
@@ -577,12 +598,12 @@ Contains summary information about a fleet and its ships
 						masterId: gear.masterId,
 						icon: gearMaster.api_type[3],
 						stars: gear.stars || 0,
-						slotSize: ship.slots[gearIdx] || 0,
+						slotSize: ship.slotSize(gearIdx),
 						shipOrder: shipIdx,
 						shipMasterId: ship.masterId,
 						shipLevel: ship.level,
 						// no info about how slot size multiply, just know 0 will not trigger
-						rate: (Math.sqrt(50 * ship.level) - 3) * Math.sqrt(ship.slots[gearIdx] || 0) / 100
+						rate: (Math.sqrt(50 * ship.level) - 3) * Math.sqrt(ship.slotSize(gearIdx)) / 100
 					});
 				}
 			});
@@ -631,7 +652,7 @@ Contains summary information about a fleet and its ships
 
 	/* Calculate expedition cost of a fleet
 	   -------------------------------------
-	   1 <= expeditionId <= 40
+	   1 <= expeditionId <= 40, 100 ~ 111
 	 */ 
 	KC3Fleet.prototype.calcExpeditionCost = function(expeditionId) {
 		var KEC = PS["KanColle.Expedition.Cost"];
@@ -642,7 +663,7 @@ Contains summary information about a fleet and its ships
 		$.each( this.ships, function(i, shipId) {
 			if (shipId > 0) {
 				var shipObj = self.ship(i);
-				var cost = shipObj.calcResupplyCost( costPercent.fuel, costPercent.ammo );
+				var cost = shipObj.calcResupplyCost( costPercent.fuel, costPercent.ammo, false, false, 0.4 );
 				totalFuel += cost.fuel;
 				totalAmmo += cost.ammo;
 			}
@@ -659,13 +680,13 @@ Contains summary information about a fleet and its ships
 		totalCost.supportFlag = this.estimateSupportType();
 		if(totalCost.supportFlag > 0) {
 			const costPercent = {
-				fuel: [0, 0.5, 0.5, 0.5][totalCost.supportFlag] || 0,
-				ammo: [0, 0.4, 0.8, 0.8][totalCost.supportFlag] || 0
+				fuel: [0, 0.5, 0.5, 0.5, 0.5][totalCost.supportFlag] || 0,
+				ammo: [0, 0.4, 0.8, 0.8, 0.4][totalCost.supportFlag] || 0
 			};
 			$.each(this.ships, (i, shipId) => {
 				if (shipId > 0) {
 					const shipObj = this.ship(i);
-					const cost = shipObj.calcResupplyCost(costPercent.fuel, costPercent.ammo);
+					const cost = shipObj.calcResupplyCost(costPercent.fuel, costPercent.ammo, false, false, 0.5);
 					totalCost.fuel += cost.fuel;
 					totalCost.ammo += cost.ammo;
 				}
@@ -685,7 +706,7 @@ Contains summary information about a fleet and its ships
 		$.each(this.ships, (i, shipId) => {
 			if (shipId > 0) {
 				const shipObj = this.ship(i);
-				const cost = shipObj.calcResupplyCost(-1, -1, true, true);
+				const cost = shipObj.calcResupplyCost(-1, -1, true, true, 0);
 				totalCost.fuel += cost.fuel;
 				totalCost.ammo += cost.ammo;
 				totalCost.steel += cost.steel;
@@ -711,6 +732,10 @@ Contains summary information about a fleet and its ships
 			fuel: 0,
 			dayOnlyAmmo: 0,
 			nightBattleAmmo: 0,
+			nightStartFuel: 0,
+			nightStartAmmo: 0,
+			aswFuel: 0,
+			aswAmmo: 0,
 			airRaidFuel: 0,
 			airRaidAmmo: 0
 		};
@@ -721,7 +746,14 @@ Contains summary information about a fleet and its ships
 			totalCost.fuel += Math.ceil(maxFuel * 0.2);
 			totalCost.dayOnlyAmmo += Math.ceil(maxAmmo * 0.2);
 			totalCost.nightBattleAmmo += Math.ceil(maxAmmo * 0.3);
-			totalCost.airRaidFuel += Math.floor(maxFuel * 0.08) || 1;
+			// 10% since Fall 2017 event
+			totalCost.nightStartFuel += Math.ceil(maxFuel * 0.1);
+			totalCost.nightStartAmmo += Math.ceil(maxAmmo * 0.1);
+			// 8% fuel, no ammo since Fall 2017 event
+			totalCost.aswFuel += Math.floor(maxFuel * 0.08) || 1;
+			totalCost.aswAmmo += 0;
+			// 8% -> 6% since Fall 2017 event
+			totalCost.airRaidFuel += Math.floor(maxFuel * 0.06) || 1;
 			totalCost.airRaidAmmo += Math.floor(maxAmmo * 0.04) || 1;
 		}
 		return totalCost;
@@ -739,6 +771,20 @@ Contains summary information about a fleet and its ships
 			.map(ship => ship.obtainTP())
 			.reduce((pre, cur) => pre.add(cur), KC3Meta.tpObtained())
 			.value);
+	};
+
+	KC3Fleet.prototype.calcRepairCost = function() {
+		const totalCost = {
+			fuel: 0,
+			steel: 0,
+		};
+		for(let i = 0; i < this.countShips(); i++) {
+			const ship = this.ship(i);
+			const repairCost = ship.calcRepairCost();
+			totalCost.fuel += repairCost.fuel;
+			totalCost.steel += repairCost.steel;
+		}
+		return totalCost;
 	};
 
 	/*--------------------------------------------------------*/
@@ -806,6 +852,35 @@ Contains summary information about a fleet and its ships
 		}, 0);
 	};
 	
+	KC3Fleet.prototype.hasShipClass = function(expected, pos, isExcludeEscaped = false){
+		return this.ship().some((ship, index) => {
+			if(isExcludeEscaped && ship.didFlee) {
+				return false;
+			}
+			if(pos === undefined || pos === index) {
+				if(typeof expected === "number"
+					|| typeof expected === "string") {
+					return expected == ship.master().api_ctype;
+				} else if(Array.isArray(expected)) {
+					return expected.indexOf(ship.master().api_ctype) > -1;
+				}
+			}
+			return false;
+		});
+	};
+	
+	KC3Fleet.prototype.countShipClass = function(expected, isExclude = false, isExcludeEscaped = false){
+		const ships = isExcludeEscaped ? this.shipsUnescaped() : this.ship();
+		return ships.reduce((count, ship) => {
+			if(Array.isArray(expected)) {
+				return count + (1 & (isExclude !==
+					(expected.indexOf(ship.master().api_ctype) > -1)));
+			}
+			return count + (1 & (isExclude !==
+				(expected == ship.master().api_ctype)));
+		}, 0);
+	};
+	
 	KC3Fleet.prototype.hasTaiha = function(){
 		return this.shipsUnescaped().some(ship => ship.isTaiha());
 	};
@@ -814,7 +889,7 @@ Contains summary information about a fleet and its ships
 		var taihaIndexes = [];
 		for(var index in this.ships){
 			var ship = this.ship(index);
-			if(ship.isTaiha() && !ship.didFlee){
+			if(ship.isTaiha() && !ship.isAbsent()){
 				taihaIndexes.push(index);
 			}
 		}
@@ -835,6 +910,10 @@ Contains summary information about a fleet and its ships
 	
 	KC3Fleet.prototype.needsSupply = function(isEmpty){
 		return this.shipsUnescaped().some(ship => ship.isNeedSupply(isEmpty));
+	};
+	
+	KC3Fleet.prototype.needsPlaneSupply = function(){
+		return this.shipsUnescaped().some(ship => !ship.areAllSlotsFull());
 	};
 	
 	KC3Fleet.prototype.missionOK = function(){
@@ -887,113 +966,37 @@ Contains summary information about a fleet and its ships
 	KC3Fleet.prototype.eLoS = function(){
 		switch(ConfigManager.elosFormula){
 			case 1: return this.eLos1();
-			case 2: return this.eLos2();
-			case 4: return this.eLos4();
-			default: return this.eLos3();
+			case 3: return this.eLos4(3);
+			case 4: return this.eLos4(4);
+			default: return this.eLos4();
 		}
 	};
 	
-	/* LoS : Fitted
-	Sum of all Ship LoS in the fleet WITH their equipment
-	------------------------------------*/
-	KC3Fleet.prototype.eLos1 = function(){
-		var self = this;
-		return Array.apply(null, {length: 6})
-			.map(Number.call, Number)
-			.map(function(x){
-				return (!self.ship(x).didFlee)? self.ship(x).ls[0] : 0;
-			})
-			.reduce(function(x,y){return x+y;});
-	};
-	
-	/* LoS : "Old Formula"
-	= Recon LoS×2 + Radar LoS + v(Fleet total LoS - Recon LoS - Radar LoS)
-	------------------------------------*/
-	KC3Fleet.prototype.eLos2 = function(){
-		var PlaneLoS = 0;
-		var RadarLoS = 0;
-		
-		function ConsiderShip(shipData){
-			if(shipData.rosterId === 0) return false;
-			if(shipData.didFlee) return false;
-			Array.apply(null, {length: 4})
-				.map(Number.call, Number)
-				.forEach(function(x){ if(shipData.items[x]>-1) { ConsiderEquipment(shipData.equipment(x)); }});
-		}
-		
-		function ConsiderEquipment(itemData){
-			if(itemData.itemId === 0) return false;
-			if( itemData.master().api_type[1] == 7){ PlaneLoS += itemData.master().api_saku; }
-			if( itemData.master().api_type[1] == 8){ RadarLoS += itemData.master().api_saku; }
-		}
-		
-		var self = this;
-		Array.apply(null, {length: 6})
-			.map(Number.call, Number)
-			.forEach(function(x){ConsiderShip(self.ship(x));});
-		
-		return (PlaneLoS*2) + RadarLoS + Math.sqrt( this.eLos1() -  PlaneLoS - RadarLoS );
-	};
-	
-	/* LoS : "New Formula"
-	= Dive Bomber LoS x (1.04) + Torpedo Bomber LoS x (1.37) + Carrier-based Recon Plane LoS x (1.66) + Recon Seaplane LoS x (2.00) + Seaplane Bomber LoS x (1.78) + Small Radar LoS x (1.00) + Large Radar LoS x (0.99) + Searchlight LoS x (0.91) + v(base LoS of each ship) x (1.69) + (HQ Lv. rounded up to the next multiple of 5) x (-0.61)
-	------------------------------------*/
-	KC3Fleet.prototype.eLos3 = function(){
-		var dive = 0, torp = 0, cbrp = 0, rspl = 0, splb = 0, smrd = 0, lgrd = 0, srch = 0;
-		var nakedLos = 0;
-		
-		function ConsiderShip(shipData){
-			if(shipData.rosterId === 0) return false;
-			if(shipData.didFlee) return false;
-			nakedLos += Math.sqrt( shipData.nakedLoS() );
-			Array.apply(null, {length: 4})
-				.map(Number.call, Number)
-				.forEach(function(x){ if(shipData.items[x]>-1) { ConsiderEquipment(shipData.equipment(x)); }});
-		}
-		
-		function ConsiderEquipment(itemData){
-			if(itemData.itemId === 0 || itemData.masterId === 0) return false;
-			switch( itemData.master().api_type[2] ){
-				case  7: dive += itemData.master().api_saku; break;
-				case  8: torp += itemData.master().api_saku; break;
-				case  9: cbrp += itemData.master().api_saku; break;
-				case 10: rspl += itemData.master().api_saku; break;
-				case 11: splb += itemData.master().api_saku; break;
-				case 12: smrd += itemData.master().api_saku; break;
-				case 13: lgrd += itemData.master().api_saku; break;
-				case 29: srch += itemData.master().api_saku; break;
-				default: break;
-			}
-		}
-		
-		var self = this;
-		Array.apply(null, {length: 6})
-			.map(Number.call, Number)
-			.forEach(function(x){
-				ConsiderShip(self.ship(x));});
-		
-		var total = ( dive * 1.0376255 )
-			+ ( torp * 1.3677954 )
-			+ ( cbrp * 1.6592780 )
-			+ ( rspl * 2.0000000 )
-			+ ( splb * 1.7787282 )
-			+ ( smrd * 1.0045358 )
-			+ ( lgrd * 0.9906638 )
-			+ ( srch * 0.9067950 )
-			+ ( nakedLos * 1.6841056 )
-			+ ( (Math.floor(( PlayerManager.hq.level + 4) / 5) * 5) * -0.6142467 );
-		return total;
-	};
-
 	/**
-	 * Implementation of effective LoS : "Formula 33".
-	 * @see http://kancolle.wikia.com/wiki/Line_of_Sight
-	 * @see http://ja.kancolle.wikia.com/wiki/%E3%83%9E%E3%83%83%E3%83%97%E7%B4%A2%E6%95%B5
-	 * @param {number} nodeDivaricatedFactor - the weight of the equipment sum part, 1 by default.
-	 *        For now: 2-5(H,I):x1, 6-2(F,H)/6-3(H):x3, 3-5(G)/6-1(E,F):x4
-	 * @return {number} F33 eLoS value of this fleet.
+	 * LoS simple sum
+	 * @return sum of all ship displayed LoS in the fleet.
+	 * @see #totalStats - sum LoS either
 	 */
-	KC3Fleet.prototype.eLos4 = function(nodeDivaricatedFactor = 1){
+	KC3Fleet.prototype.eLos1 = function(){
+		return this.shipsUnescaped().map(ship => ship.ls[0]).sumValues();
+	};
+	
+	// Old formulas out of date, these function names reserved for researching.
+	/**
+	 * @return sum of sqrt(ship naked LoS)
+	 */
+	KC3Fleet.prototype.eLos2 = function(){
+		return this.shipsUnescaped().map(ship => Math.sqrt(ship.nakedLoS())).sumValues();
+	};
+	
+	/**
+	 * @return sum of all ships equipment eLoS, so u can multiply any Cn
+	 */
+	KC3Fleet.prototype.eLos3 = function(){
+		return this.shipsUnescaped().map(ship => KC3Fleet.sumShipEquipmentElos(ship)).sumValues();
+	};
+	
+	KC3Fleet.sumShipEquipmentElos = function(shipObj){
 		// Known verified special multipliers applied to these types of equipment,
 		// ID refer to KCSAPI: start2/api_mst_slotitem_equiptype, slotitem.api_type[2]
 		const multipliers = {
@@ -1003,46 +1006,59 @@ Contains summary information about a fleet and its ships
 			11: 1.1, // Seaplane Bomber
 			58: 0.8, // Jet Torpedo Bomber (reserved)
 			59: 1.0, // Jet Reconnaissance Aircraft (reserved)
-			94: 1.0  // Carrier-Based Reconnaissance Aircraft (II) (reserved)
+			94: 1.0, // Carrier-Based Reconnaissance Aircraft (II) (reserved)
 		};
 		// without verified data, assume other items with LoS stat are using this:
 		const defaultMultiplier = 0.6;
-
-		var total = 0;
-		var emptyShipSlot = 0;
-
-		// iterate all ship slots, even some are empty
-		this.ships.map((rid, i) => this.ship(i)).forEach(shipObj => {
-			// count for empty slots or ships retreated
-			if(shipObj.isDummy() || shipObj.didFlee) {
-				emptyShipSlot += 1;
-			} else {
-				// sum ship's naked los
-				total += Math.sqrt(shipObj.nakedLoS());
-
-				// iterate ship's equipment including ex-slot
-				let equipTotal = 0;
-				shipObj.equipment(true).forEach(gearObj => {
-					if (gearObj.exists()) {
-						const itemType = gearObj.master().api_type[2];
-						const itemLos = gearObj.master().api_saku;
-						const multiplier = multipliers[itemType] || defaultMultiplier;
-						// only item with los stat > 0 will be summed
-						// although some items are not equippable by ship, eg: LBAA
-						if (itemLos > 0) {
-							equipTotal += multiplier * (itemLos + gearObj.losStatImprovementBonus());
-						}
-					}
-				});
-				total += nodeDivaricatedFactor * equipTotal;
+		let equipTotal = 0;
+		if(!shipObj || shipObj.isDummy() || shipObj.isAbsent())
+			return equipTotal;
+		// iterate ship's equipment including ex-slot
+		shipObj.equipment(true).forEach(gearObj => {
+			if (gearObj.exists()) {
+				const itemType = gearObj.master().api_type[2];
+				const itemLos = gearObj.master().api_saku;
+				const multiplier = multipliers[itemType] || defaultMultiplier;
+				// only item with los stat > 0 will be summed
+				// although some items are not equippable by ship, eg: LBAA
+				if (itemLos > 0) {
+					equipTotal += multiplier * (itemLos + gearObj.losStatImprovementBonus());
+				}
 			}
 		});
-
+		return equipTotal;
+	};
+	
+	/**
+	 * Implementation of effective LoS : "Formula 33".
+	 * @see http://kancolle.wikia.com/wiki/Line_of_Sight
+	 * @see http://ja.kancolle.wikia.com/wiki/%E3%83%9E%E3%83%83%E3%83%97%E7%B4%A2%E6%95%B5
+	 * @param {number} nodeDivaricatedFactor - the weight of the equipment sum part, 1 by default.
+	 *        For phase 1: 2-5(H,I):x1, 6-2(F,H)/6-3(H):x3, 3-5(G)/6-1(E,F):x4
+	 * @param {number} hqLevel - the expected level of player HQ to compute old history value,
+	 *        current player level by default.
+	 * @return {number} F33 eLoS value of this fleet.
+	 */
+	KC3Fleet.prototype.eLos4 = function(nodeDivaricatedFactor = 1, hqLevel = PlayerManager.hq.level){
+		const fullShipSlots = 6,
+			// empty slots and retreated ships already filtered
+			availableShips = this.shipsUnescaped(),
+			// count for empty slots or ships retreated,
+			// according test https://twitter.com/CC_jabberwock/status/975369274804940801
+			// for 7 ships Striking Force fleet during event, it will be -1, which make finally elos -2.
+			emptyShipSlot = fullShipSlots - availableShips.length;
+		let total = 0;
+		availableShips.forEach(ship => {
+			// sum ship's naked LoS
+			total += Math.sqrt(ship.nakedLoS());
+			// sum equipment's eLoS
+			const equipTotal = KC3Fleet.sumShipEquipmentElos(ship);
+			total += nodeDivaricatedFactor * equipTotal;
+		});
 		// player hq level adjustment
-		total -= Math.ceil(0.4 * PlayerManager.hq.level);
+		total -= Math.ceil(0.4 * hqLevel);
 		// empty ship slot adjustment
 		total += 2 * emptyShipSlot;
-
 		return total;
 	};
 	
@@ -1057,7 +1073,7 @@ Contains summary information about a fleet and its ships
 	 */
 	KC3Fleet.prototype.lookupKatoriClassBonus = function() {
 		var ctBonusTable = [
-			// ~9,  ~29,  ~59,  ~99, ~165?
+			// ~9,  ~29,  ~59,  ~99, Married
 			[ 1.0,  1.0,  1.0,  1.0,  1.0], // No CT
 			[1.05, 1.08, 1.12, 1.15, 1.20], // CT x 1 as flagship
 			[1.03, 1.05, 1.07, 1.10, 1.15], // CT x 1
@@ -1169,6 +1185,7 @@ Contains summary information about a fleet and its ships
 	 *         1=Aerial Support, 2=Support Shelling, 3=Long Range Torpedo Attack, 4=Anti-Sub Support
 	 *         0=Unmet expedition prerequisite
 	 * @see http://kancolle.wikia.com/wiki/Expedition/Support_Expedition
+	 * @see http://wikiwiki.jp/kancolle/?%BB%D9%B1%E7%B4%CF%C2%E2
 	 */
 	KC3Fleet.prototype.estimateSupportType = function() {
 		// Support expedition needs 2 DD at least
@@ -1190,6 +1207,28 @@ Contains summary information about a fleet and its ships
 			else {
 				return 3;
 			}
+		}
+		// Check for Anti-sub Support
+		const countAirAswShipType = (...shipTypes) => {
+			return this.ship().reduce((count, ship) => {
+				return count + (1 & (
+					// Match with specific ship types
+					shipTypes.includes(ship.master().api_stype) &&
+					// Equip aircraft can ASW with air attack (TB/DB/Autogyro/PBY/SPB/SPR/LFB)
+					// on any non zero slot
+					ship.equipment().some(
+						(g, i) => ship.slotSize(i) > 0 && g.isAswAircraft(false, true)
+					)
+				));
+			}, 0);
+		};
+		// If 1 Anti-sub CVL + any 1 Anti-sub (with air attack) CVL/AV/AO/LHA/CL or 2 DE present
+		// Will fall back to Aerial Support if there is no submarine in enemy fleet
+		const antiSubCvl = countAirAswShipType(7);
+		if(antiSubCvl >= 1 && (antiSubCvl >= 2 ||
+			countAirAswShipType(3, 16, 17, 22) >= 1 ||
+			this.countShipType(1) >= 2)) {
+			return 4;
 		}
 		// If no criteria is met, remaining should be Aerial Support
 		return 1;
@@ -1214,7 +1253,7 @@ Contains summary information about a fleet and its ships
 		const result = [-1, -1];
 		const lookupSearchlight = type2Id => {
 			this.ship().find((ship, shipIndex) => {
-				if(ship.hp[0] > 1 && !ship.didFlee) {
+				if(!ship.isAbsent() && ship.hp[0] > 1) {
 					const equipMap = ship.findEquipmentByType(2, type2Id);
 					const equipIndex = equipMap.indexOf(true);
 					if(equipIndex >= 0) {
@@ -1248,57 +1287,38 @@ Contains summary information about a fleet and its ships
 	Stats not recorded here can be computed by master stats + kyouka (mod)
 	------------------------------------*/
 	KC3Fleet.prototype.sortieJson = function(){
+		const self = this;
+		const shipsArray = [];
 		if(this.active){
-			var ReturnObj = [];
-			var self = this;
 			$.each(this.ships, function(index, rosterId){
 				if(rosterId > 0){
-					var ship = self.ship(index);
-					var nakedStats = ship.nakedStats();
-					ReturnObj.push({
+					const ship = self.ship(index);
+					const nakedStats = ship.nakedStats();
+					shipsArray.push({
 						mst_id: ship.masterId,
 						level: ship.level,
 						morale: ship.morale,
 						stats: {
 							ev: nakedStats.ev,
 							ls: nakedStats.ls,
-							as: nakedStats.as
+							as: nakedStats.as,
+							sp: ship.speed
 						},
 						kyouka: ship.mod,
-						equip: [
-							ship.equipment(0).masterId,
-							ship.equipment(1).masterId,
-							ship.equipment(2).masterId,
-							ship.equipment(3).masterId,
-							ship.exItem().masterId
-						],
-						stars: [
-							ship.equipment(0).stars,
-							ship.equipment(1).stars,
-							ship.equipment(2).stars,
-							ship.equipment(3).stars,
-							ship.exItem().stars
-						],
-						ace: [
-							ship.equipment(0).ace,
-							ship.equipment(1).ace,
-							ship.equipment(2).ace,
-							ship.equipment(3).ace,
-							ship.exItem().ace
-						]
+						equip: ship.equipment(true).map(g => g.masterId),
+						stars: ship.equipment(true).map(g => g.stars),
+						ace: ship.equipment(true).map(g => g.ace)
 					});
 				}
 			});
-			return ReturnObj;
-		}else{
-			return {};
 		}
+		return shipsArray;
 	};
 
 	KC3Fleet.prototype.deckbuilder = function() {
-		var result = {};
-		this.ship().map( function(x,i) {
-			result["s".concat(i+1)] = x.deckbuilder();
+		const result = {};
+		this.ship().forEach((ship, index) => {
+			result[`s${index + 1}`] = ship.deckbuilder();
 		});
 		return result;
 	};

@@ -15,8 +15,8 @@
 ---------------------------------*/
 .tab_event .world_list {
 	height:31px;
-	position:relative;
 	min-width:700px;
+	position:relative;
 	overflow:hidden;
 }
 .tab_event .world_box {
@@ -60,29 +60,29 @@
 }
 .tab_event .map_shift {
 	position:absolute;
-	top: 0;
-	width: 10px;
-	height: 95%;
-	display: flex;
-	align-items: center;
-	cursor: pointer;
+	top:0;
+	width:10px;
+	height:95%;
+	display:flex;
+	align-items:center;
+	cursor:pointer;
 }
 .tab_event .map_shift.left {
-	left: 0;
+	left:0;
 }
 .tab_event .map_shift.right {
-	right: 2px;
+	right:2px;
 }
 .tab_event .map_shift.disabled {
 	cursor:default;
-	color: #f0f8ff;
+	visibility:hidden;
 }
 .tab_event .map_list {
-	position: relative;
-	min-width: 800px;
-	margin: 0px 0px 0px 0px;
-	padding: 5px 10px;
-	margin-left: -97px;
+	position:relative;
+	min-width:800px;
+	margin:0px 0px 0px 0px;
+	padding:5px 10px;
+	margin-left:-97px;
 }
 .tab_event .map_box {
 	width:90px;
@@ -140,43 +140,38 @@
 	position: relative;
 }
 
-.tab_event .map_box.cleared.easy:after {
+.tab_event .map_box.cleared:after {
 	content: "";
 	display: block;
 	position: absolute;
 	top: -1px;
-	right: -8px;
-	width: 21px;
-	height: 36px;
-	background: transparent url('../../../../assets/img/client/medals/easy_medal.png');
-	background-size: contain;
+	right: -7px;
 	pointer-events: none;
 }
-
+.tab_event .map_box.cleared.casual:after {
+	top: -2px;
+	width: 19px;
+	height: 32px;
+	background: transparent url('/assets/img/client/medals/casual_medal.png') no-repeat;
+	background-size: contain;
+}
+.tab_event .map_box.cleared.easy:after {
+	width: 21px;
+	height: 37px;
+	background: transparent url('/assets/img/client/medals/easy_medal.png') no-repeat;
+	background-size: contain;
+}
 .tab_event .map_box.cleared.normal:after {
-	content: "";
-	display: block;
-	position: absolute;
-	top: -1px;
-	right: -8px;
 	width: 29px;
 	height: 37px;
-	background: transparent url('../../../../assets/img/client/medals/normal_medal.png');
+	background: transparent url('/assets/img/client/medals/normal_medal.png') no-repeat;
 	background-size: contain;
-	pointer-events: none;
 }
-
 .tab_event .map_box.cleared.hard:after {
-	content: "";
-	display: block;
-	position: absolute;
-	top: -1px;
-	right: -8px;
 	width: 34px;
 	height: 38px;
-	background: transparent url('../../../../assets/img/client/medals/hard_medal.png');
+	background: transparent url('/assets/img/client/medals/hard_medal.png') no-repeat;
 	background-size: contain;
-	pointer-events: none;
 }
 
 .tab_event .map_box.cleared.active.easy:after,
@@ -200,19 +195,33 @@
 	margin:5px 0px 0px 0px;
 }
 
-.tab_event .sortie_controls .sortie_count {
+.tab_event .sortie_controls .sortie_per_page {
+	float:left;
+	height:15px;
 	font-size:12px;
 	line-height:12px;
+	margin:4px 0px 4px 20px;
+}
+.tab_event .sortie_controls .sortie_per_page select {
 	float:left;
-	margin:4px 5px 5px 20px;
+	width:40px;
+	height:18px;
+	margin:-3px 4px 0px 0px;
+}
+.tab_event .sortie_controls .sortie_count {
+	float:left;
+	height:15px;
+	font-size:12px;
+	line-height:12px;
+	margin:4px 5px 4px 5px;
 }
 
 /* SORTIE SWITCHER
 ---------------------------------*/
 .tab_event .sortie_batch_toggles {
-	width:179px;
+	width:209px;
 	height:20px;
-	margin:5px 5px -5px 511px;
+	margin:5px 5px -5px 481px;
 	background:none;
 }
 .tab_event .sortie_batch_toggles .sortie_toggles {
@@ -276,6 +285,7 @@
 	font-weight:bold;
 	text-align:center;
 	float:left;
+	white-space:nowrap;
 }
 .tab_event .sortie_list .sortie_date {
 	width:50px;
@@ -284,6 +294,7 @@
 	font-size:12px;
 	text-align:center;
 	float:left;
+	white-space:nowrap;
 }
 
 /* Sortie Info: MAP */
@@ -314,6 +325,7 @@
 	width:30px;
 	height:30px;
 	vertical-align:top;
+	visibility:hidden;
 }
 .tab_event .sortie_list .seven_ships .sortie_ship {
 	margin:3px 5px 0px 0px;
@@ -345,6 +357,31 @@
 .tab_event .sortie_list .sortie_edges {
 	width:175px;
 	margin:0px 5px 0px 0px;
+}
+.tab_event .sortie_list .sortie_edges .shipstate {
+	position:relative;
+	margin:-15px 0px 0px 15px;
+	width:18px;
+	height:18px;
+	float:left;
+	overflow:hidden;
+}
+.tab_event .sortie_list .sortie_edges.two_lines .shipstate {
+	margin:-13px 0px 0px 19px;
+	width:14px;
+	height:14px;
+}
+.tab_event .sortie_list .sortie_edges.two_lines.more_edges .shipstate {
+	margin:-13px 0px 0px 9px;
+}
+.tab_event .sortie_list .sortie_edges .shipstate img {
+	width:18px;
+	height:18px;
+	vertical-align:top;
+}
+.tab_event .sortie_list .sortie_edges.two_lines .shipstate img {
+	width:14px;
+	height:14px;
 }
 .tab_event .sortie_list .nonodes {
 	height:30px;
@@ -527,11 +564,11 @@
 	height:20px;
 	float:left;
 }
-
-.tab_event .sortie_list .rfleet_equips img {
+.tab_event .sortie_list .rfleet_equip img {
 	float:left;
-	line-height: auto;
 	width:12px;
+	margin-top:-1px;
+	vertical-align:top;
 }
 
 .tab_event .sortie_list .rfleet_lbas_plane {
@@ -635,8 +672,12 @@
 	height:24px;
 	float:left;
 	line-height:24px;
-	/*background:#fcc;*/
 }
+.tab_event .sortie_list .node_result.icon5 > div {
+	width:16px;
+	transform:scaleX(0.8);
+}
+
 .tab_event .sortie_list .node_formation img {
 	-webkit-transform: rotate(-90deg);
 	transform: rotate(-90deg);
@@ -862,6 +903,25 @@
 	color:#f00;
 }
 /* Difficulty marker */
+/* new Winter 2018 casual difficulty uses the ID 1 */
+.tab_event .sortie_list .sortie_box.sortie_rank_1C {
+	border: rgb(64,255,64) solid 1px;
+}
+.tab_event .sortie_list .sortie_box.sortie_rank_1C:after {
+	content: attr(data-diff);
+	position:absolute;
+	right:0; bottom:0;
+	opacity:0;
+	color:rgb(0,128,0);
+	font-weight:bolder;
+	font-size:200%;
+	pointer-events:none;
+	transition: all 0.25s;
+}
+.tab_event .sortie_list .sortie_box.sortie_rank_1C.expanded:after {
+	opacity:0.25;
+}
+/* difficulty ID should shift +1, but unchanged here */
 .tab_event .sortie_list .sortie_box.sortie_rank_1 {
 	border: rgb(64,64,255) solid 1px;
 	/*background-image: url('../../../../assets/img/client/difficulty/bg-1.png');*/
@@ -892,7 +952,7 @@
 	opacity:0.25;
 }
 .tab_event .sortie_list .sortie_box.sortie_rank_2 {
-	border: rgb(64,255,64) solid 1px;
+	border: rgb(255,255,64) solid 1px;
 	/*background-image: url('../../../../assets/img/client/difficulty/bg-2.png');*/
 	/*background-repeat: no-repeat;*/
 	/*background-position: 100% 100%;*/
@@ -911,7 +971,7 @@
 	position:absolute;
 	right:0; bottom:0;
 	opacity:0;
-	color:rgb(0,128,0);
+	color:rgb(128,128,0);
 	font-weight:bolder;
 	font-size:200%;
 	pointer-events:none;

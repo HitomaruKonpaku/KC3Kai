@@ -17,6 +17,7 @@
         hougeki: {}, // shelling (砲撃)
         raigeki: {}, // torpedoes (雷撃)
         support: {}, // support expedition
+        friendly: {}, // night battle friend fleet support
       },
     },
     // Rank prediction
@@ -47,6 +48,21 @@
     }
   };
 
+  BP.analyzeBattlePartially = (battleData, playerDamecons, selectedPhases) => {
+    const { fleets, battle, formatResult } = KC3BattlePrediction;
+
+    try {
+      const initialFleets = fleets.getInitialState(battleData, playerDamecons);
+      const resultFleets = battle.simulateBattlePartially(battleData, initialFleets, selectedPhases);
+
+      return formatResult(initialFleets, resultFleets);
+    } catch (error) {
+      // Pass context explicitly, so it is recorded
+      KC3Log.error(error, error.data, { selectedPhases, battleData, playerDamecons });
+      throw error;
+    }
+  };
+
   BP.predictRank = (apiName, battleData, battleResult) => {
     const { parseStartJson, normalizeFleets, getRankPredictor } = KC3BattlePrediction.rank;
 
@@ -54,6 +70,18 @@
       normalizeFleets(parseStartJson(battleData), battleData),
       normalizeFleets(battleResult, battleData)
     );
+  };
+
+  BP.predictRankAndDamageGauge = (apiName, battleData, battleResult) => {
+    const { parseStartJson, normalizeFleets, getRankPredictor, getDamageGauge } = KC3BattlePrediction.rank;
+
+    const initialFleets = normalizeFleets(parseStartJson(battleData), battleData),
+      resultFleets = normalizeFleets(battleResult, battleData);
+
+    return [
+      getRankPredictor(apiName).predict(initialFleets, resultFleets),
+      getDamageGauge(initialFleets, resultFleets)
+    ];
   };
 
   BP.predictMvp = (dayResult, nightResult) => {
@@ -83,7 +111,7 @@
   // ---------------
 
   // Player or enemy ship
-  BP.Side = Object.freeze({ PLAYER: 'player', ENEMY: 'enemy' });
+  BP.Side = Object.freeze({ PLAYER: 'player', ENEMY: 'enemy', FRIEND: 'friend' });
 
   // Ship in main or escort fleet
   BP.Role = Object.freeze({ MAIN_FLEET: 'main', ESCORT_FLEET: 'escort' });
